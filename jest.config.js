@@ -1,21 +1,26 @@
 const { loadEnv } = require("@medusajs/utils");
 loadEnv("test", process.cwd());
 
+/** @type {import('ts-jest').JestConfigWithTsJest} */
 module.exports = {
-  transform: {
-    "^.+\\.[jt]s$": [
-      "@swc/jest",
-      {
-        jsc: {
-          parser: { syntax: "typescript", decorators: true },
-        },
-      },
-    ],
-  },
+  preset: "ts-jest",
   testEnvironment: "node",
-  moduleFileExtensions: ["js", "ts", "json"],
-  modulePathIgnorePatterns: ["dist/", "<rootDir>/.medusa/"],
-  setupFiles: ["./integration-tests/setup.js"],
+  moduleFileExtensions: ["js", "json", "ts"],
+  rootDir: "src",
+  testRegex: ".*\\.test\\.ts$",
+  transform: {
+    "^.+\\.(t|j)s$": "ts-jest"
+  },
+  collectCoverageFrom: [
+    "**/*.(t|j)s"
+  ],
+  coverageDirectory: "../coverage",
+  // Add these for Medusa compatibility
+  moduleNameMapper: {
+    "^@medusajs/medusa/dist/(.*)": "@medusajs/medusa/dist/$1",
+    "^@medusajs/medusa$": "@medusajs/medusa/dist",
+    "^@medusajs/framework/dist/(.*)": "@medusajs/framework/dist/$1"
+  }
 };
 
 if (process.env.TEST_TYPE === "integration:http") {

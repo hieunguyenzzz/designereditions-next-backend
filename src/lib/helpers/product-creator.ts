@@ -1,11 +1,9 @@
-import { 
-  ProductStatus,
-  ProductVariant 
-} from "@medusajs/medusa"
 import { MedusaContainer } from "@medusajs/framework/types"
 import { 
   createProductsWorkflow 
 } from "@medusajs/medusa/core-flows"
+
+import {CreateProductWorkflowInputDTO } from "@medusajs/framework/types";
 
 export type CreateProductInput = {
   title: string
@@ -21,10 +19,11 @@ export async function createProduct(
   const { title, description, colors = ["Black", "White"], sizes = ["S", "M", "L", "XL"] } = input
 
   // Create product data
-  const productData = {
+  const productData: CreateProductWorkflowInputDTO = {
     title,
     description: description || `Description for ${title}`,
-    status: ProductStatus.PUBLISHED,
+    status: "published", // Use string literal instead of enum
+    shipping_profile_id: "default", // Add required shipping profile
     options: [
       {
         title: "Color",

@@ -1,5 +1,4 @@
 import { createProduct } from "../product-creator"
-import { ProductStatus } from "@medusajs/medusa"
 
 // Mock the createProductsWorkflow
 jest.mock("@medusajs/medusa/core-flows", () => ({
@@ -32,7 +31,7 @@ describe("Product Creator Helper", () => {
       id: "test_product_id",
       title: "Test Product",
       description: "Test Description",
-      status: ProductStatus.PUBLISHED,
+      status: "published",
       options: [
         {
           title: "Color",

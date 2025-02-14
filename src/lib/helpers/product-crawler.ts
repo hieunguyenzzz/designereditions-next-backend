@@ -36,6 +36,8 @@ interface ProductVariant {
     packagingDimensions?: string
     shippingCartons?: string
     highlights: Highlight[]
+    handle: string
+    swatchStyle?: string
   }
 }
 
@@ -58,17 +60,8 @@ interface Highlight {
 }
 
 function cleanImageUrl(url: string): string {
-  // Handle URLs starting with //
-  if (url.startsWith('//')) {
-    url = 'https:' + url
-  }
-  // Handle URLs without protocol
-  else if (!url.startsWith('http')) {
-    url = 'https://' + url.replace(/^\/+/, '')
-  }
-  
-  // Remove query parameters and ensure https
-  return url.split('?')[0].replace('http://', 'https://')
+  // Remove size dimensions like _1180x, _640x etc from the URL
+  return url.replace(/_([\d]+)x\./i, '.')
 }
 
 function isLargeImage(url: string): boolean {
@@ -81,6 +74,25 @@ function isLargeImage(url: string): boolean {
   return true // If no size found, include the image
 }
 
+function removeDuplicateImages(images: string[]): string[] {
+  // Clean URLs first and create a map to remove duplicates
+  const uniqueUrls = new Map<string, string>()
+  
+  images.forEach(url => {
+    const cleanedUrl = cleanImageUrl(url)
+    // Keep the version with larger dimensions by checking if it includes a larger number
+    const currentSize = url.match(/_([\d]+)x\./i)?.[1] || '0'
+    const existingUrl = uniqueUrls.get(cleanedUrl)
+    const existingSize = existingUrl?.match(/_([\d]+)x\./i)?.[1] || '0'
+    
+    if (!existingUrl || parseInt(currentSize) > parseInt(existingSize)) {
+      uniqueUrls.set(cleanedUrl, url)
+    }
+  })
+  
+  return Array.from(uniqueUrls.values())
+}
+
 async function crawlVariantPage(url: string): Promise<{
   price: number
   salePrice?: number
@@ -88,9 +100,18 @@ async function crawlVariantPage(url: string): Promise<{
   sku: string
   specifications: Record<string, string>
   highlights: Highlight[]
+  handle: string
+  swatchStyle?: string
 }> {
   const response = await axios.get(url)
   const $ = cheerio.load(response.data)
+
+  // Extract handle from URL
+  const handle = url.split('/').pop()?.split('?')[0] || ''
+
+  // Extract swatch style
+  const swatchStyle = $('li.swatch.active').attr('style') || 
+                     $(`a[href*="${handle}"]`).attr('style')
 
   // Extract prices from data-amount attributes
   const originalPrice = parseInt($('.old-price').eq(1).attr('data-amount') || '0')
@@ -99,11 +120,10 @@ async function crawlVariantPage(url: string): Promise<{
   // Extract images specific to this variant
   const images: string[] = []
   $('.zoom-trigger').each((_, element) => {
-    // Get the first desktop image (higher resolution)
     const img = $(element).find('img.lg\\:block').first()
     const url = img.attr('src')
-    if (url && !images.includes(url) && isLargeImage(url)) {
-      images.push(cleanImageUrl(url))
+    if (url && isLargeImage(url)) {
+      images.push(url)
     }
   })
 
@@ -111,8 +131,8 @@ async function crawlVariantPage(url: string): Promise<{
   if (images.length === 0) {
     $('img[src*="/files/"]').each((_, element) => {
       const url = $(element).attr('src')
-      if (url && !images.includes(url) && isLargeImage(url)) {
-        images.push(cleanImageUrl(url))
+      if (url && isLargeImage(url)) {
+        images.push(url)
       }
     })
   }
@@ -144,13 +164,19 @@ async function crawlVariantPage(url: string): Promise<{
     }
   })
 
+  // Add this line after collecting all images
+  const uniqueImages = removeDuplicateImages(images)
+
+  // Remove duplicates before returning
   return {
     price: originalPrice,
     salePrice: salePrice || undefined,
-    images,
+    images: uniqueImages,
     sku: specifications['SKU'] || '',
     specifications,
-    highlights
+    highlights,
+    handle,
+    swatchStyle
   }
 }
 
@@ -245,7 +271,9 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
             tabletopThickness: variantData.specifications['Tabletop Thickness'],
             packagingDimensions: variantData.specifications['Packaging Dimensions'],
             shippingCartons: variantData.specifications['No. of Shipping Cartons'],
-            highlights: variantData.highlights
+            highlights: variantData.highlights,
+            handle: variantData.handle,
+            swatchStyle: variantData.swatchStyle
           }
         })
       } catch (error) {
@@ -254,7 +282,7 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
     }
     
     // Extract base product images
-    const images: ProductImage[] = []
+    const rawImages: ProductImage[] = []
     $('img[src*="/files/"]')
       .not('.product-recommendations img')
       .not('.you-might-also img')
@@ -262,10 +290,21 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
       .each((_, element) => {
         const url = $(element).attr('src')
         const alt = $(element).attr('alt') || ''
-        if (url && !images.some(img => img.url === url) && isLargeImage(url)) {
-          images.push({ url: cleanImageUrl(url), alt })
+        if (url && isLargeImage(url)) {
+          rawImages.push({ url, alt })
         }
       })
+
+    // Remove duplicates based on cleaned URLs
+    const uniqueUrls = new Map<string, ProductImage>()
+    rawImages.forEach(img => {
+      const cleanedUrl = cleanImageUrl(img.url)
+      if (!uniqueUrls.has(cleanedUrl)) {
+        uniqueUrls.set(cleanedUrl, { ...img, url: cleanedUrl })
+      }
+    })
+
+    const images = Array.from(uniqueUrls.values())
     
     // Extract product description
     const description = $('.product-description').first().text().trim()
@@ -306,6 +345,12 @@ export function convertToApiFormat(productData: ProductDetails) {
   // Get first image for thumbnail
   const thumbnail = productData.images[0]?.url
 
+  // Generate handle from subtitle
+  const handle = productData.subtitle?.toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-') // Replace non-alphanumeric with dash
+    .replace(/^-+|-+$/g, '') // Remove leading/trailing dashes
+    || productData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') // Fallback to name
+
   const variants = productData.variants.map(variant => ({
     ...variant,
     options: {
@@ -316,11 +361,12 @@ export function convertToApiFormat(productData: ProductDetails) {
       images: variant.images
     }
   }))
-  console.log(thumbnail);
+
   return {
     title: productData.name,
     subtitle: productData.subtitle,
     description: productData.description,
+    handle,
     options: [{
       title: "Material",
       values: productData.options[0].values
@@ -333,6 +379,6 @@ export function convertToApiFormat(productData: ProductDetails) {
     metadata: {
       specifications: productData.specifications
     },
-    status: 'draft'
+    status: 'published'
   }
 } 

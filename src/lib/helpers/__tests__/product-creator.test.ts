@@ -1,4 +1,6 @@
 import { createProduct } from "../product-creator"
+import { MedusaContainer } from "@medusajs/framework/types"
+
 
 // Mock the createProductsWorkflow
 jest.mock("@medusajs/medusa/core-flows", () => ({
@@ -15,9 +17,22 @@ jest.mock("@medusajs/medusa/core-flows", () => ({
 }))
 
 describe("Product Creator Helper", () => {
-  const mockContainer = {
-    // Add any required container dependencies
-  } as any
+  let container: MedusaContainer
+  let productService: any
+  let createdProductId: string | null = null
+
+  beforeAll(() => {
+    container = global.container as MedusaContainer
+    productService = container.resolve("productService")
+  })
+
+  afterEach(async () => {
+    // Clean up: delete the product if it was created
+    if (createdProductId) {
+      await productService.delete(createdProductId)
+      createdProductId = null
+    }
+  })
 
   it("should create a product with default options", async () => {
     const input = {
@@ -25,10 +40,10 @@ describe("Product Creator Helper", () => {
       description: "Test Description"
     }
 
-    const product = await createProduct(mockContainer, input)
+    const product = await createProduct(container, input)
+    createdProductId = product.id
 
     expect(product).toMatchObject({
-      id: "test_product_id",
       title: "Test Product",
       description: "Test Description",
       status: "published",
@@ -46,6 +61,12 @@ describe("Product Creator Helper", () => {
 
     // Should create 8 variants (2 colors * 4 sizes)
     expect(product.variants.length).toBe(8)
+
+    // Verify product exists in database
+    const foundProduct = await productService.retrieve(product.id, {
+      relations: ["variants", "options"]
+    })
+    expect(foundProduct).toBeTruthy()
   })
 
   it("should create a product with custom colors and sizes", async () => {
@@ -55,12 +76,19 @@ describe("Product Creator Helper", () => {
       sizes: ["Small", "Large"]
     }
 
-    const product = await createProduct(mockContainer, input)
+    const product = await createProduct(container, input)
+    createdProductId = product.id
 
     expect(product.options[0].values).toEqual(["Red", "Blue"])
     expect(product.options[1].values).toEqual(["Small", "Large"])
     
     // Should create 4 variants (2 colors * 2 sizes)
     expect(product.variants.length).toBe(4)
+
+    // Verify variants in database
+    const foundProduct = await productService.retrieve(product.id, {
+      relations: ["variants", "options"]
+    })
+    expect(foundProduct.variants.length).toBe(4)
   })
 }) 

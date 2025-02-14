@@ -3,52 +3,54 @@ import {
   createProductsWorkflow 
 } from "@medusajs/medusa/core-flows"
 
-import {CreateProductWorkflowInputDTO } from "@medusajs/framework/types";
+import { CreateProductWorkflowInputDTO } from "@medusajs/framework/types";
+
+export type ProductOption = {
+  title: string
+  values: string[]
+}
+
+export type ProductVariant = {
+  title: string
+  options: Record<string, string>
+  prices: {
+    amount: number
+    currency_code: string
+  }[]
+  inventory_quantity?: number
+}
 
 export type CreateProductInput = {
   title: string
   description?: string
-  colors?: string[]
-  sizes?: string[]
+  options: ProductOption[]
+  variants?: ProductVariant[]
+  status?: string
+  metadata?: Record<string, any>
 }
 
 export async function createProduct(
   container: MedusaContainer,
   input: CreateProductInput
 ) {
-  const { title, description, colors = ["Black", "White"], sizes = ["S", "M", "L", "XL"] } = input
+  const { 
+    title, 
+    description, 
+    options = [], 
+    variants = [],
+    status = "published",
+    metadata = {}
+  } = input
 
   // Create product data
   const productData: CreateProductWorkflowInputDTO = {
     title,
     description: description || `Description for ${title}`,
-    status: "published", // Use string literal instead of enum
-    shipping_profile_id: "default", // Add required shipping profile
-    options: [
-      {
-        title: "Color",
-        values: colors,
-      },
-      {
-        title: "Size", 
-        values: sizes,
-      }
-    ],
-    // Generate variants for each color/size combination
-    variants: colors.flatMap(color =>
-      sizes.map(size => ({
-        title: `${title} - ${color} ${size}`,
-        options: {
-          Color: color,
-          Size: size
-        },
-        prices: [{
-          amount: 1000, // $10.00
-          currency_code: "usd"
-        }],
-        inventory_quantity: 100
-      }))
-    )
+    status,
+    metadata,
+    shipping_profile_id: "sp_01JM18DSFFZW6A3X2BVSRWHYAK",
+    options,
+    variants: variants.length > 0 ? variants : generateDefaultVariants(title, options)
   }
 
   // Create the product using workflow
@@ -59,4 +61,48 @@ export async function createProduct(
   })
 
   return products[0]
+}
+
+function generateDefaultVariants(
+  title: string, 
+  options: ProductOption[]
+): ProductVariant[] {
+  if (options.length === 0) {
+    return [{
+      title,
+      options: {},
+      prices: [{
+        amount: 1000,
+        currency_code: "usd"
+      }],
+      inventory_quantity: 100
+    }]
+  }
+
+  // Generate all possible combinations of option values
+  const combinations = options.reduce<Record<string, string>[]>(
+    (acc, option) => {
+      if (acc.length === 0) {
+        return option.values.map(value => ({ [option.title]: value }))
+      }
+      return acc.flatMap(combo => 
+        option.values.map(value => ({
+          ...combo,
+          [option.title]: value
+        }))
+      )
+    }, 
+    []
+  )
+
+  // Create variants from combinations
+  return combinations.map(combo => ({
+    title: `${title} - ${Object.values(combo).join(' ')}`,
+    options: combo,
+    prices: [{
+      amount: 1000,
+      currency_code: "usd"
+    }],
+    inventory_quantity: 100
+  }))
 } 

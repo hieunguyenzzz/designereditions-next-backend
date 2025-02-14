@@ -51,9 +51,17 @@ interface ProductDetails {
 }
 
 function cleanImageUrl(url: string): string {
+  // Handle URLs starting with //
+  if (url.startsWith('//')) {
+    url = 'https:' + url
+  }
+  // Handle URLs without protocol
+  else if (!url.startsWith('http')) {
+    url = 'https://' + url.replace(/^\/+/, '')
+  }
+  
   // Remove query parameters and ensure https
-  const cleanUrl = url.split('?')[0].replace('http://', 'https://')
-  return cleanUrl
+  return url.split('?')[0].replace('http://', 'https://')
 }
 
 async function crawlVariantPage(url: string): Promise<{
@@ -243,10 +251,10 @@ export function convertToApiFormat(productData: ProductDetails) {
   if (!productData.name) {
     throw new Error('Product name/title is required')
   }
-  
-  // Convert variants to match Medusa's format
-  console.log(productData.variants[0].prices);
-  console.log(productData.variants[1].prices);
+
+  // Get first image for thumbnail
+  const thumbnail = productData.images[0]?.url
+
   const variants = productData.variants.map(variant => ({
     ...variant,
     options: {
@@ -257,7 +265,7 @@ export function convertToApiFormat(productData: ProductDetails) {
       images: variant.images
     }
   }))
-
+  console.log(thumbnail);
   return {
     title: productData.name,
     subtitle: productData.subtitle,
@@ -270,6 +278,7 @@ export function convertToApiFormat(productData: ProductDetails) {
     images: productData.images.map(img => ({
       url: img.url
     })),
+    thumbnail,
     metadata: {
       specifications: productData.specifications
     },

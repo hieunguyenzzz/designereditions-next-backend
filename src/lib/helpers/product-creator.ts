@@ -1,6 +1,7 @@
 import { MedusaContainer } from "@medusajs/framework/types"
 import { createProductsWorkflow } from "@medusajs/medusa/core-flows"
 import { CreateProductWorkflowInputDTO } from "@medusajs/framework/types"
+import { Modules } from "@medusajs/framework/utils"
 
 export type ProductOption = {
   title: string
@@ -35,15 +36,29 @@ export async function createProduct(
   container: MedusaContainer,
   input: CreateProductWorkflowInputDTO
 ) {
+  // Check for existing variants with same handles
+  const productService = container.resolve(Modules.PRODUCT)
   
+  for (const variant of input.variants) {
+    const variantHandle = variant.metadata?.handle
+    if (variantHandle) {
+      const [existingVariants] = await productService.listAndCountProductVariants({
+        metadata: {
+          handle: variantHandle
+        }
+      })
+      
+      if (existingVariants.length > 0) {
+        throw new Error(`Product variant with handle "${variantHandle}" already exists`)
+      }
+    }
+  }
 
   const productData: CreateProductWorkflowInputDTO = {
     ...input,
-    // Required by Medusa core
     shipping_profile_id: "sp_01JM18DSFFZW6A3X2BVSRWHYAK"
   }
 
-  // Create product using workflow
   const { result: products } = await createProductsWorkflow(container).run({
     input: {
       products: [productData]

@@ -6,6 +6,7 @@ import { createProduct } from "../../../lib/helpers/product-creator"
 import { crawlProductPage, convertToApiFormat } from "../../../lib/helpers/product-crawler"
 import { z } from "zod"
 
+
 // Validation schema
 const CreateProductSchema = z.object({
   productUrl: z.string().url(),
@@ -27,12 +28,9 @@ export const POST = async (
       console.log('\n🌐 Crawling URL:', validatedBody.productUrl)
       
       const crawledData = await crawlProductPage(validatedBody.productUrl)
-
       const productData = convertToApiFormat(crawledData)
       
-      // Create product using the converted data directly
       const product = await createProduct(req.scope, productData)
-
       res.status(201).json({ product })
     } else {
       res.status(400).json({

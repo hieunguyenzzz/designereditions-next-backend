@@ -27,6 +27,7 @@ export const POST = async (
       console.log('\n🌐 Crawling URL:', validatedBody.productUrl)
       
       const crawledData = await crawlProductPage(validatedBody.productUrl)
+
       const productData = convertToApiFormat(crawledData)
       
       // Create product using the converted data directly

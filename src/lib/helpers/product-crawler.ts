@@ -35,6 +35,7 @@ interface ProductVariant {
     tabletopThickness?: string
     packagingDimensions?: string
     shippingCartons?: string
+    highlights: Highlight[]
   }
 }
 
@@ -48,6 +49,12 @@ interface ProductDetails {
   description: string
   specifications: Record<string, string>
   variants: ProductVariant[]
+}
+
+interface Highlight {
+  image: string
+  title: string
+  content: string
 }
 
 function cleanImageUrl(url: string): string {
@@ -80,6 +87,7 @@ async function crawlVariantPage(url: string): Promise<{
   images: string[]
   sku: string
   specifications: Record<string, string>
+  highlights: Highlight[]
 }> {
   const response = await axios.get(url)
   const $ = cheerio.load(response.data)
@@ -120,12 +128,29 @@ async function crawlVariantPage(url: string): Promise<{
     }
   })
 
+  // Extract highlights
+  const highlights: Highlight[] = []
+  $('.mw9.pdh.product-module-wrap.lifestyle__items').find('.lifestyle__item').each((_, element) => {
+    const image = $(element).find('img').attr('src')
+    const title = $(element).find('h3, .hd3').text().trim()
+    const content = $(element).find('p').text().trim()
+
+    if (image && title && content) {
+      highlights.push({
+        image: cleanImageUrl(image),
+        title,
+        content
+      })
+    }
+  })
+
   return {
     price: originalPrice,
     salePrice: salePrice || undefined,
     images,
     sku: specifications['SKU'] || '',
-    specifications
+    specifications,
+    highlights
   }
 }
 
@@ -219,7 +244,8 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
             tabletopHeight: variantData.specifications['Tabletop Height'],
             tabletopThickness: variantData.specifications['Tabletop Thickness'],
             packagingDimensions: variantData.specifications['Packaging Dimensions'],
-            shippingCartons: variantData.specifications['No. of Shipping Cartons']
+            shippingCartons: variantData.specifications['No. of Shipping Cartons'],
+            highlights: variantData.highlights
           }
         })
       } catch (error) {
@@ -242,8 +268,7 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
       })
     
     // Extract product description
-    const description = $('.product-description').text().trim() ||
-                       $('div:contains("Product Description")').next().text().trim()
+    const description = $('.product-description').first().text().trim()
     
     // Extract product specifications
     const specifications: Record<string, string> = {}

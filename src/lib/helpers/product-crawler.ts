@@ -64,6 +64,16 @@ function cleanImageUrl(url: string): string {
   return url.split('?')[0].replace('http://', 'https://')
 }
 
+function isLargeImage(url: string): boolean {
+  // Extract size from URL (e.g., "60x", "1180x")
+  const sizeMatch = url.match(/(\d+)x/)
+  if (sizeMatch) {
+    const size = parseInt(sizeMatch[1])
+    return size >= 200
+  }
+  return true // If no size found, include the image
+}
+
 async function crawlVariantPage(url: string): Promise<{
   price: number
   salePrice?: number
@@ -80,12 +90,24 @@ async function crawlVariantPage(url: string): Promise<{
   
   // Extract images specific to this variant
   const images: string[] = []
-  $('img[src*="/files/"]').each((_, element) => {
-    const url = $(element).attr('src')
-    if (url && !images.includes(url)) {
+  $('.zoom-trigger').each((_, element) => {
+    // Get the first desktop image (higher resolution)
+    const img = $(element).find('img.lg\\:block').first()
+    const url = img.attr('src')
+    if (url && !images.includes(url) && isLargeImage(url)) {
       images.push(cleanImageUrl(url))
     }
   })
+
+  // If no images found with primary selector, try fallback
+  if (images.length === 0) {
+    $('img[src*="/files/"]').each((_, element) => {
+      const url = $(element).attr('src')
+      if (url && !images.includes(url) && isLargeImage(url)) {
+        images.push(cleanImageUrl(url))
+      }
+    })
+  }
 
   // Extract specifications for this variant
   const specifications: Record<string, string> = {}
@@ -207,13 +229,17 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
     
     // Extract base product images
     const images: ProductImage[] = []
-    $('img[src*="/files/"]').each((_, element) => {
-      const url = $(element).attr('src')
-      const alt = $(element).attr('alt') || ''
-      if (url && !images.some(img => img.url === url)) {
-        images.push({ url: cleanImageUrl(url), alt })
-      }
-    })
+    $('img[src*="/files/"]')
+      .not('.product-recommendations img')
+      .not('.you-might-also img')
+      .not('.instagram-roundel img')
+      .each((_, element) => {
+        const url = $(element).attr('src')
+        const alt = $(element).attr('alt') || ''
+        if (url && !images.some(img => img.url === url) && isLargeImage(url)) {
+          images.push({ url: cleanImageUrl(url), alt })
+        }
+      })
     
     // Extract product description
     const description = $('.product-description').text().trim() ||

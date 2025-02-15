@@ -1,5 +1,6 @@
 import axios from 'axios'
 import * as cheerio from 'cheerio'
+import { CreateProductWorkflowInputDTO } from "@medusajs/framework/types"
 
 interface ProductOption {
   name: string
@@ -337,7 +338,7 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
 }
 
 // Helper to convert crawled data to API format
-export function convertToApiFormat(productData: ProductDetails) {
+export function convertToApiFormat(productData: ProductDetails) : CreateProductWorkflowInputDTO {
   if (!productData.name) {
     throw new Error('Product name/title is required')
   }
@@ -379,6 +380,7 @@ export function convertToApiFormat(productData: ProductDetails) {
     metadata: {
       specifications: productData.specifications
     },
-    status: 'published'
+    status: 'published',
+    shipping_profile_id: 'sp_01JM18DSFFZW6A3X2BVSRWHYAK'
   }
 } 

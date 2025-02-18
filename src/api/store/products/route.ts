@@ -7,6 +7,7 @@ import { crawlProductPage, convertToApiFormat } from "../../../lib/helpers/produ
 import { z } from "zod"
 import axios from 'axios'
 import type { Product } from "@medusajs/medusa"
+import util from "util"
 
 // Update the validation schema to handle URL encoding
 const CreateProductSchema = z.object({
@@ -90,7 +91,7 @@ export const POST = async (
       
       const crawledData = await crawlProductPage(validatedBody.productUrl)
       const productData = convertToApiFormat(crawledData)
-      
+      console.log(util.inspect(productData, { depth: null, colors: true }));
       const product = await createProduct(req.scope, productData)
       res.status(201).json({ product })
     }

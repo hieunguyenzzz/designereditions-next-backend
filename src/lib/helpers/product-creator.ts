@@ -1,36 +1,99 @@
 import { MedusaContainer } from "@medusajs/framework/types"
-import { createProductsWorkflow } from "@medusajs/medusa/core-flows"
+import { createProductsWorkflow, createPriceListsWorkflow } from "@medusajs/medusa/core-flows"
 import { CreateProductWorkflowInputDTO } from "@medusajs/framework/types"
 import { Modules } from "@medusajs/framework/utils"
+import type { 
+  ProductVariant, 
+  PriceList 
+} from "@medusajs/medusa/dist/models"
 
 export async function createProduct(
   container: MedusaContainer,
   input: CreateProductWorkflowInputDTO
 ) {
-  // Check for existing variants with same handles
   const productService = container.resolve(Modules.PRODUCT)
   
+  // Check for existing SKUs
   if (input.variants) {
     for (const variant of input.variants) {
-      const variantHandle = variant.metadata?.handle
-      if (variantHandle) {
-        // Search by SKU instead since we can't filter by metadata
+      if (variant.sku) {
         const [existingVariants] = await productService.listAndCountProductVariants({
           q: variant.sku
         })
         
         if (existingVariants.length > 0) {
-          throw new Error(`Product variant with handle "${variantHandle}" already exists`)
+          console.log(`Product with SKU ${variant.sku} already exists, skipping...`)
+          return existingVariants[0].product
         }
       }
     }
   }
-  
+
+  // Step 1: Create the product
   const { result: products } = await createProductsWorkflow(container).run({
     input: {
       products: [input]
     }
   })
 
-  return products[0]
+  const product = products[0]
+
+  // Step 2: Create price rules for variants with sale prices
+  const variantsWithSalePrices = (input.variants || []).filter(variant => 
+    variant.prices?.some(price => price.price_list_id)
+  )
+
+  console.log('Variants with sale prices:', JSON.stringify(variantsWithSalePrices, null, 2))
+
+  if (variantsWithSalePrices.length > 0) {
+    const priceListPrices = variantsWithSalePrices.flatMap(inputVariant => {
+      console.log('Processing variant:', inputVariant.sku)
+      console.log('Variant prices:', JSON.stringify(inputVariant.prices, null, 2))
+      
+      const createdVariant = product.variants.find(v => v.sku === inputVariant.sku)
+      if (!createdVariant) {
+        console.log('No matching created variant found for SKU:', inputVariant.sku)
+        return []
+      }
+
+      const salePrices = (inputVariant.prices || [])
+        .filter(price => price.price_list_id)
+        .map(price => ({
+          variant_id: createdVariant.id,
+          amount: price.amount,
+          currency_code: price.currency_code
+        }))
+
+      console.log('Sale prices for variant:', JSON.stringify(salePrices, null, 2))
+      return salePrices
+    })
+
+    if (priceListPrices.length > 0) {
+      try {
+        await createPriceListsWorkflow(container).run({
+          input: [{
+            name: `${product.title} Sale Prices`,
+            description: `Sale prices for ${product.title}`,
+            type: "sale",
+            status: "active",
+            includes_tax: false,
+            prices: priceListPrices.map(price => ({
+              variant_id: price.variant_id,
+              amount: price.amount,
+              currency_code: price.currency_code,
+              min_quantity: 1
+            }))
+          }]
+        })
+      } catch (error) {
+        console.error('Error creating price list:', error)
+        console.log('Price list data:', {
+          name: `${product.title} Sale Prices`,
+          prices: priceListPrices
+        })
+      }
+    }
+  }
+
+  return product
 } 

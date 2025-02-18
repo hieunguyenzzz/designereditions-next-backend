@@ -211,7 +211,19 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
     
     // Extract basic product info
     const name = $('h1').first().text().trim()
-    const subtitle = $('.product__subtitle').text().trim()
+    const activeOptionValue = $('.swatch.active').attr('content')?.trim() || ''
+    let subtitle = $('.product__subtitle').text().trim()
+
+    // Remove active option value from subtitle if present
+    if (activeOptionValue) {
+      subtitle = subtitle
+        .replace(`, ${activeOptionValue}`, '')  // Remove with comma
+        .replace(` ${activeOptionValue}`, '')   // Remove without comma
+        .trim()
+    }
+
+    console.log('Active Option:', activeOptionValue)
+    console.log('Cleaned Subtitle:', subtitle)
     
     // Extract base prices
     const priceText = $('h1').nextAll().find('span').first().text().trim()
@@ -311,6 +323,9 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
       .not('.product-recommendations img')
       .not('.you-might-also img')
       .not('.instagram-roundel img')
+      // Exclude collection images
+      .not('.flex.gap-8.justify-end img')
+      .not('a[href*="/collections/"] img')
       .each((_, element) => {
         const src = $(element).attr('src')
         if (!src) return
@@ -408,6 +423,7 @@ export function convertToApiFormat(productData: ProductDetails) : CreateProductW
       specifications: productData.specifications
     },
     status: 'published',
-    shipping_profile_id: 'sp_01JM18DSFFZW6A3X2BVSRWHYAK'
+    shipping_profile_id: 'sp_01JM18DSFFZW6A3X2BVSRWHYAK',
+    sales_channels: [{ id: "sc_01JM18DQRAB13QQK6V7535YDR1" }]
   }
 } 

@@ -62,7 +62,12 @@ interface Highlight {
 
 function cleanImageUrl(url: string): string {
   // Remove size dimensions like _1180x, _640x etc from the URL
-  return url.replace(/_([\d]+)x\./i, '.')
+  let cleanUrl = url.replace(/_([\d]+)x\./i, '.')
+  
+  // Remove URL parameters (everything after and including ?)
+  cleanUrl = cleanUrl.split('?')[0]
+  
+  return cleanUrl
 }
 
 function isLargeImage(url: string): boolean {
@@ -329,6 +334,9 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
       .each((_, element) => {
         const src = $(element).attr('src')
         if (!src) return
+
+        // Skip images with "lifestyle" in the URL
+        if (src.toLowerCase().includes('lifestyle')) return
 
         const url = normalizeImageUrl(src)
         const alt = $(element).attr('alt') || ''

@@ -32,7 +32,9 @@
     "@mikro-orm/migrations": "6.4.3",
     "@mikro-orm/postgresql": "6.4.3",
     "awilix": "^8.0.1",
-    "pg": "^8.13.0"
+    "axios": "^1.7.9",
+    "pg": "^8.13.0",
+    "xml2js": "^0.6.2"
   },
   "devDependencies": {
     "@medusajs/test-utils": "2.5.0",
@@ -43,6 +45,7 @@
     "@types/node": "^20.0.0",
     "@types/react": "^18.3.2",
     "@types/react-dom": "^18.2.25",
+    "@types/xml2js": "^0.4.14",
     "cheerio": "^1.0.0",
     "jest": "^29.7.0",
     "prop-types": "^15.8.1",

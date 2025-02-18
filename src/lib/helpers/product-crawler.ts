@@ -66,12 +66,22 @@ function cleanImageUrl(url: string): string {
 }
 
 function isLargeImage(url: string): boolean {
+  // Check for specific size indicators
+  if (url.includes('2172x') || 
+      url.includes('1800x') || 
+      url.includes('files/') ||
+      url.includes('_large') ||
+      url.includes('_2048x')) {
+    return true
+  }
+
   // Extract size from URL (e.g., "60x", "1180x")
   const sizeMatch = url.match(/(\d+)x/)
   if (sizeMatch) {
     const size = parseInt(sizeMatch[1])
     return size >= 200
   }
+
   return true // If no size found, include the image
 }
 
@@ -181,6 +191,19 @@ async function crawlVariantPage(url: string): Promise<{
   }
 }
 
+// Helper to normalize image URL
+function normalizeImageUrl(url: string): string {
+  // Add https if protocol is missing
+  if (url.startsWith('//')) {
+    url = 'https:' + url
+  }
+  // Convert http to https
+  if (url.startsWith('http:')) {
+    url = url.replace('http:', 'https:')
+  }
+  return url
+}
+
 export async function crawlProductPage(url: string): Promise<ProductDetails> {
   try {
     const response = await axios.get(url)
@@ -284,14 +307,18 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
     
     // Extract base product images
     const rawImages: ProductImage[] = []
-    $('img[src*="/files/"]')
+    $('img[src*="/products/"], img[src*="/files/"]')  // Match both patterns
       .not('.product-recommendations img')
       .not('.you-might-also img')
       .not('.instagram-roundel img')
       .each((_, element) => {
-        const url = $(element).attr('src')
+        const src = $(element).attr('src')
+        if (!src) return
+
+        const url = normalizeImageUrl(src)
         const alt = $(element).attr('alt') || ''
-        if (url && isLargeImage(url)) {
+        
+        if (isLargeImage(url)) {
           rawImages.push({ url, alt })
         }
       })

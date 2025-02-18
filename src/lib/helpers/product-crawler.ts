@@ -109,6 +109,21 @@ function removeDuplicateImages(images: string[]): string[] {
   return Array.from(uniqueUrls.values())
 }
 
+function normalizeImageUrl(url: string): string {
+  // Ensure URL starts with http
+  if (!url.startsWith('http')) {
+    url = `https:${url.startsWith('//') ? url : `//${url}`}`
+  }
+  
+  // Remove any URL parameters (everything after ?)
+  url = url.split('?')[0]
+  
+  // Remove size dimensions like _1180x
+  url = url.replace(/_([\d]+)x\./i, '.')
+  
+  return url
+}
+
 async function crawlVariantPage(url: string): Promise<{
   price: number
   salePrice?: number
@@ -138,8 +153,11 @@ async function crawlVariantPage(url: string): Promise<{
   $('.zoom-trigger').each((_, element) => {
     const img = $(element).find('img.lg\\:block').first()
     const url = img.attr('src')
-    if (url && isLargeImage(url)) {
-      images.push(url)
+    if (url) {
+      const normalizedUrl = normalizeImageUrl(url)
+      if (isLargeImage(normalizedUrl)) {
+        images.push(normalizedUrl)
+      }
     }
   })
 
@@ -194,19 +212,6 @@ async function crawlVariantPage(url: string): Promise<{
     handle,
     swatchStyle
   }
-}
-
-// Helper to normalize image URL
-function normalizeImageUrl(url: string): string {
-  // Add https if protocol is missing
-  if (url.startsWith('//')) {
-    url = 'https:' + url
-  }
-  // Convert http to https
-  if (url.startsWith('http:')) {
-    url = url.replace('http:', 'https:')
-  }
-  return url
 }
 
 export async function crawlProductPage(url: string): Promise<ProductDetails> {

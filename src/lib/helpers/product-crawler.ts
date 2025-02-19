@@ -368,12 +368,12 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
     
     // Extract product specifications
     const specifications: Record<string, string> = {}
-    $('.usp-item.pdh.show li').each((_, element) => {
-      const text = $(element).text().trim()
-      const [key, ...valueParts] = text.split(':')
-      const value = valueParts.join(':').trim()
+    $('.usp-content .specs li').each((_, element) => {
+      const key = $(element).find('b').text().trim().replace(':', '').trim()
+      const value = $(element).find('span[class^="js-"]').text().trim()
+      
       if (key && value) {
-        specifications[key.trim()] = value
+        specifications[key] = value
       }
     })
 

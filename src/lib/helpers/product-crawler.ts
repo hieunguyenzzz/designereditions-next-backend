@@ -233,6 +233,9 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
         .trim()
     }
 
+    // Convert any inch measurements in subtitle to cm
+    subtitle = convertMeasurements(subtitle)
+
     console.log('Active Option:', activeOptionValue)
     console.log('Cleaned Subtitle:', subtitle)
     

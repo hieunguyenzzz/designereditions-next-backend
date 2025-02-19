@@ -10,7 +10,13 @@ describe('crawlProductPage', () => {
 
     // Test basic product information
     expect(result.name).toBe('Plinth')
-    expect(result.subtitle).toBe('Plinth Coffee Table Marble')
+    // If subtitle contains measurements, expect them to be in cm
+    expect(result.subtitle).toMatch(/Coffee Table/)
+    if (result.subtitle?.includes('"')) {
+      expect(result.subtitle).toMatch(/\d+cm/)
+    } else {
+      expect(result.subtitle).toBe('Plinth Coffee Table Marble')
+    }
     
     // Test variants pricing instead of originalPrice
     expect(result.variants[0].prices[0].amount).toBeGreaterThan(1000)

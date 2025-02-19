@@ -370,9 +370,18 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
     const specifications: Record<string, string> = {}
     $('.usp-content .specs li').each((_, element) => {
       const key = $(element).find('b').text().trim().replace(':', '').trim()
-      const value = $(element).find('span[class^="js-"]').text().trim()
+      let value = $(element).find('span[class^="js-"]').text().trim()
       
       if (key && value) {
+        // Convert measurements in the value
+        value = convertMeasurements(value)
+        
+        // Special handling for combined dimensions and weight
+        if (value.includes('(')) {
+          const [dimensions, weight] = value.split('(')
+          value = `${convertMeasurements(dimensions.trim())} (${convertMeasurements(weight.trim())})`
+        }
+        
         specifications[key] = value
       }
     })
@@ -445,4 +454,52 @@ export function convertToApiFormat(productData: ProductDetails) : CreateProductW
     shipping_profile_id: 'sp_01JM18DSFFZW6A3X2BVSRWHYAK',
     sales_channels: [{ id: "sc_01JM18DQRAB13QQK6V7535YDR1" }]
   }
+}
+
+// Add these utility functions at the top of the file
+function convertInchToCm(inch: string): string {
+  const inchNumber = parseFloat(inch)
+  return `${Math.round(inchNumber * 2.54)}cm`
+}
+
+function convertLbsToKg(lbs: string): string {
+  const lbsNumber = parseFloat(lbs)
+  return `${Math.round(lbsNumber * 0.45359237)}kg`
+}
+
+function convertMeasurements(value: string): string {
+  // Handle dimensions like "H11.8" x W39.4" x D23.6""
+  if (value.includes('H') && value.includes('W') && value.includes('D')) {
+    return value.replace(/(\d+\.?\d*)"?/g, (match) => {
+      return convertInchToCm(match)
+    }).replace(/\s+/g, ' ').trim()
+  }
+  
+  // Handle simple measurements like "0.7""
+  if (value.match(/^\d+\.?\d*"$/)) {
+    return convertInchToCm(value.replace('"', ''))
+  }
+  
+  // Handle measurements within text (like "0.7" marble over...")
+  if (value.match(/\d+\.?\d*"/)) {
+    return value.replace(/(\d+\.?\d*)"(?=\s|$)/g, (match) => {
+      return convertInchToCm(match.replace('"', ''))
+    })
+  }
+  
+  // Handle dimensions like "43" x 27" x 16""
+  if (value.match(/\d+\.?\d*"\s*x\s*\d+\.?\d*"\s*x\s*\d+\.?\d*"/)) {
+    return value.replace(/(\d+\.?\d*)"?/g, (match) => {
+      return convertInchToCm(match)
+    }).replace(/\s+/g, ' ').trim()
+  }
+  
+  // Handle weight in parentheses like "(300 lbs)"
+  if (value.includes('lbs')) {
+    return value.replace(/(\d+)\s*lbs/g, (_, lbs) => {
+      return convertLbsToKg(lbs)
+    })
+  }
+  
+  return value
 } 

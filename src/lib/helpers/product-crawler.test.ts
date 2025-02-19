@@ -52,15 +52,31 @@ describe('crawlProductPage', () => {
      */
     // Test specifications
     const expectedSpecs = {
-      'Product Dimensions': 'H11.8" x W39.4" x D23.6"',
+      'Product Dimensions': 'H30cm x W100cm x D60cm',
+      'Tabletop Height': '30cm',
+      'Material': 'Modellato Marble',
+      'Assembly Requirements': 'None required',
+      'Indoor or Outdoor Use': 'Suitable for both indoor and outdoor use',
+      'Material Details': 'Marble is sealed, making it weather resistant and suitable for outdoor use',
+      'Tabletop Thickness': '2cm marble over concrete composite core',
+      'Product Weight': '136kg',
+      'Packaging Dimensions': '109cm x 69cm x 41cm (136kg)',
     }
 
     // Test that each specification exists and matches expected format
-    Object.entries(expectedSpecs).forEach(([key, value]) => {
+    Object.entries(expectedSpecs).forEach(([key, _]) => {
       expect(result.specifications).toHaveProperty(key)
-      // Use a more flexible match since values might change
-      expect(typeof result.specifications[key]).toBe('string')
-      expect(result.specifications[key].length).toBeGreaterThan(0)
+      if (key === 'Product Dimensions') {
+        expect(result.specifications[key]).toMatch(/H\d+cm x W\d+cm x D\d+cm/)
+      } else if (key === 'Tabletop Height') {
+        expect(result.specifications[key]).toMatch(/\d+cm/)
+      } else if (key === 'Tabletop Thickness') {
+        expect(result.specifications[key]).toMatch(/\d+cm marble over/)
+      } else if (key === 'Product Weight') {
+        expect(result.specifications[key]).toMatch(/\d+kg/)
+      } else if (key === 'Packaging Dimensions') {
+        expect(result.specifications[key]).toMatch(/\d+cm x \d+cm x \d+cm \(\d+kg\)/)
+      }
     })
 
     // Test variants

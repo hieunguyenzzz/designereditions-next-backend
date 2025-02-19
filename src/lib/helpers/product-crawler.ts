@@ -1,6 +1,7 @@
 import axios from 'axios'
 import * as cheerio from 'cheerio'
 import { CreateProductWorkflowInputDTO } from "@medusajs/framework/types"
+import { getCategoryFromSubtitle } from './crawl-attributes/category-mapper'
 
 interface ProductOption {
   name: string
@@ -418,6 +419,9 @@ export function convertToApiFormat(productData: ProductDetails) : CreateProductW
     }
   }))
 
+  // Get category information
+  const categoryInfo = getCategoryFromSubtitle(productData.subtitle || '')
+
   return {
     title: productData.name,
     subtitle: productData.subtitle,
@@ -433,7 +437,9 @@ export function convertToApiFormat(productData: ProductDetails) : CreateProductW
     })),
     thumbnail,
     metadata: {
-      specifications: productData.specifications
+      specifications: productData.specifications,
+      category: categoryInfo.parent,
+      subcategory: categoryInfo.subcategory
     },
     status: 'published',
     shipping_profile_id: 'sp_01JM18DSFFZW6A3X2BVSRWHYAK',

@@ -176,9 +176,18 @@ async function crawlVariantPage(url: string): Promise<{
   const specifications: Record<string, string> = {}
   $('.usp-item.pdh .specs li').each((_, element) => {
     const key = $(element).find('b').text().trim().replace(':', '').trim()
-    const value = $(element).find('span[class^="js-"]').text().trim()
+    let value = $(element).find('span[class^="js-"]').text().trim()
     
     if (key && value) {
+      // Convert measurements in the value
+      value = convertMeasurements(value)
+      
+      // Special handling for combined dimensions and weight
+      if (value.includes('(')) {
+        const [dimensions, weight] = value.split('(')
+        value = `${convertMeasurements(dimensions.trim())} (${convertMeasurements(weight.trim())})`
+      }
+      
       specifications[key] = value
     }
   })
@@ -186,11 +195,16 @@ async function crawlVariantPage(url: string): Promise<{
   // Extract highlights
   const highlights: Highlight[] = []
   $('.mw9.pdh.product-module-wrap.lifestyle__items').find('.lifestyle__item').each((_, element) => {
-    const image = $(element).find('img').attr('src')
+    let image = $(element).find('img').attr('src')
     const title = $(element).find('h3, .hd3').text().trim()
     const content = $(element).find('p').text().trim()
 
     if (image && title && content) {
+      // Ensure image URL starts with https
+      if (!image.startsWith('http')) {
+        image = `https:${image.startsWith('//') ? image : `//${image}`}`
+      }
+      
       highlights.push({
         image: cleanImageUrl(image),
         title,

@@ -363,6 +363,9 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
 
         // Skip images with "lifestyle" in the URL
         if (src.toLowerCase().includes('lifestyle')) return
+        
+        // Skip images with "_crop_" in the URL
+        if (src.toLowerCase().includes('_crop_')) return
 
         const url = normalizeImageUrl(src)
         const alt = $(element).attr('alt') || ''

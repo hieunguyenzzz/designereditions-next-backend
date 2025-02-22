@@ -91,7 +91,6 @@ export const POST = async (
       
       const crawledData = await crawlProductPage(validatedBody.productUrl)
       const productData = convertToApiFormat(crawledData)
-      console.log(util.inspect(productData, { depth: null, colors: true }));
       const product = await createProduct(req.scope, productData)
       res.status(201).json({ product })
     }

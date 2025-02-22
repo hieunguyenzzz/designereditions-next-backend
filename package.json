@@ -33,6 +33,7 @@
     "@mikro-orm/postgresql": "6.4.3",
     "awilix": "^8.0.1",
     "axios": "^1.7.9",
+    "openai": "^4.85.3",
     "pg": "^8.13.0",
     "xml2js": "^0.6.2"
   },

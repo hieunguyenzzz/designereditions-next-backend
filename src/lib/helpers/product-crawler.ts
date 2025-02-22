@@ -2,6 +2,7 @@ import axios from 'axios'
 import * as cheerio from 'cheerio'
 import { CreateProductWorkflowInputDTO } from "@medusajs/framework/types"
 import { getCategoryFromSubtitle } from './crawl-attributes/category-mapper'
+import OpenAI from 'openai'
 
 interface ProductOption {
   name: string
@@ -40,6 +41,7 @@ interface ProductVariant {
     highlights: Highlight[]
     handle: string
     swatchStyle?: string
+    dimensionImages: ProductImage[]
   }
 }
 
@@ -55,6 +57,7 @@ interface ProductDetails {
   variants: ProductVariant[]
   metadata: {
     highlights: Highlight[]
+    dimensionImages: ProductImage[]
   }
 }
 
@@ -63,6 +66,10 @@ interface Highlight {
   title: string
   content: string
 }
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+})
 
 function cleanImageUrl(url: string): string {
   // Remove size dimensions like _1180x, _640x etc from the URL
@@ -137,6 +144,7 @@ async function crawlVariantPage(url: string): Promise<{
   highlights: Highlight[]
   handle: string
   swatchStyle?: string
+  dimensionImages: ProductImage[]
 }> {
   const response = await axios.get(url)
   const $ = cheerio.load(response.data)
@@ -219,6 +227,24 @@ async function crawlVariantPage(url: string): Promise<{
   // Add this line after collecting all images
   const uniqueImages = removeDuplicateImages(images)
 
+  // Extract dimension images
+  const dimensionImages: ProductImage[] = []
+  $('.product-gallery img').each(async (_, element) => {
+    const src = $(element).attr('src')
+    if (!src) return
+    
+    if (src.toLowerCase().includes('_crop_')) return
+
+    const url = normalizeImageUrl(src)
+    const alt = $(element).attr('alt') || ''
+    if (dimensionImages.length === 0) {
+      const isDimension = await isDimensionImage(url)
+      if (isDimension) {
+        dimensionImages.push({ url: cleanImageUrl(url), alt })
+      }
+    }
+  })
+
   // Remove duplicates before returning
   return {
     price: originalPrice,
@@ -228,7 +254,40 @@ async function crawlVariantPage(url: string): Promise<{
     specifications,
     highlights,
     handle,
-    swatchStyle
+    swatchStyle,
+    dimensionImages
+  }
+}
+
+async function isDimensionImage(imageUrl: string): Promise<boolean> {
+  console.log('Checking if image is a dimension image:', imageUrl)
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "user",
+          content: [
+            { 
+              type: "text", 
+              text: "Is this a product dimension/measurement image? Please respond with just 'true' or 'false'." 
+            },
+            {
+              type: "image_url",
+              image_url: {
+                url: `https://thumbor.hieunguyen.dev/unsafe/300x/${imageUrl}`
+              }
+            }
+          ],
+        },
+      ],
+      max_tokens: 1,
+    });
+
+    return response.choices[0].message.content?.toLowerCase() === 'true';
+  } catch (error) {
+    console.error('Error detecting dimension image:', error);
+    return false;
   }
 }
 
@@ -340,7 +399,8 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
             shippingCartons: variantData.specifications['No. of Shipping Cartons'],
             highlights: variantData.highlights,
             handle: variantData.handle,
-            swatchStyle: variantData.swatchStyle
+            swatchStyle: variantData.swatchStyle,
+            dimensionImages: variantData.dimensionImages
           }
         })
       } catch (error) {
@@ -348,32 +408,40 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
       }
     }
     
-    // Extract base product images
+    // Extract base product images and dimension images
     const rawImages: ProductImage[] = []
-    $('img[src*="/products/"], img[src*="/files/"]')  // Match both patterns
+    const dimensionImages: ProductImage[] = []
+    
+    // Process all product images
+    await Promise.all($('img[src*="/products/"], img[src*="/files/"]')
       .not('.product-recommendations img')
       .not('.you-might-also img')
       .not('.instagram-roundel img')
-      // Exclude collection images
       .not('.flex.gap-8.justify-end img')
       .not('a[href*="/collections/"] img')
-      .each((_, element) => {
+      .map(async (_, element) => {
         const src = $(element).attr('src')
         if (!src) return
 
-        // Skip images with "lifestyle" in the URL
         if (src.toLowerCase().includes('lifestyle')) return
-        
-        // Skip images with "_crop_" in the URL
         if (src.toLowerCase().includes('_crop_')) return
 
         const url = normalizeImageUrl(src)
         const alt = $(element).attr('alt') || ''
-        
-        if (isLargeImage(url)) {
-          rawImages.push({ url, alt })
+
+        // Check if it's a dimension image
+        if (dimensionImages.length === 0) {
+          const isDimension = await isDimensionImage(url)
+          
+          if (isDimension) {
+            console.log('Dimension Image:', url)
+            dimensionImages.push({ url: cleanImageUrl(url), alt })
+          }
         }
-      })
+        if (isLargeImage(url)) {
+          rawImages.push({ url: cleanImageUrl(url), alt })
+        }
+      }).get())
 
     // Remove duplicates based on cleaned URLs
     const uniqueUrls = new Map<string, ProductImage>()
@@ -441,7 +509,8 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
       specifications,
       variants,
       metadata: {
-        highlights
+        highlights,
+        dimensionImages
       }
     }
   } catch (error) {
@@ -496,7 +565,8 @@ export function convertToApiFormat(productData: ProductDetails) : CreateProductW
       specifications: productData.specifications,
       category: categoryInfo.parent,
       subcategory: categoryInfo.subcategory,
-      highlights: productData.metadata.highlights
+      highlights: productData.metadata.highlights,
+      dimensionImages: productData.metadata.dimensionImages
     },
     status: 'published',
     shipping_profile_id: 'sp_01JM18DSFFZW6A3X2BVSRWHYAK',

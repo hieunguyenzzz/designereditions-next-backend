@@ -53,6 +53,9 @@ interface ProductDetails {
   description: string
   specifications: Record<string, string>
   variants: ProductVariant[]
+  metadata: {
+    highlights: Highlight[]
+  }
 }
 
 interface Highlight {
@@ -403,6 +406,27 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
       }
     })
 
+    // Extract highlights
+    const highlights: Highlight[] = []
+    $('.mw9.pdh.product-module-wrap.lifestyle__items').find('.lifestyle__item').each((_, element) => {
+      let image = $(element).find('img').attr('src')
+      const title = $(element).find('.lifestyle__title').text().trim()
+      const content = $(element).find('.lifestyle__info').text().trim()
+
+      if (image && title && content) {
+        // Ensure image URL starts with https
+        if (!image.startsWith('http')) {
+          image = `https:${image.startsWith('//') ? image : `//${image}`}`
+        }
+        
+        highlights.push({
+          image: cleanImageUrl(image),
+          title,
+          content
+        })
+      }
+    })
+
     return {
       name,
       subtitle,
@@ -412,7 +436,10 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
       images,
       description,
       specifications,
-      variants
+      variants,
+      metadata: {
+        highlights
+      }
     }
   } catch (error) {
     throw new Error(`Failed to crawl product page: ${error.message}`)
@@ -465,7 +492,8 @@ export function convertToApiFormat(productData: ProductDetails) : CreateProductW
     metadata: {
       specifications: productData.specifications,
       category: categoryInfo.parent,
-      subcategory: categoryInfo.subcategory
+      subcategory: categoryInfo.subcategory,
+      highlights: productData.metadata.highlights
     },
     status: 'published',
     shipping_profile_id: 'sp_01JM18DSFFZW6A3X2BVSRWHYAK',

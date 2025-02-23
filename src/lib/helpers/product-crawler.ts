@@ -41,7 +41,6 @@ interface ProductVariant {
     highlights: Highlight[]
     handle: string
     swatchStyle?: string
-    dimensionImages: ProductImage[]
   }
 }
 
@@ -57,7 +56,6 @@ interface ProductDetails {
   variants: ProductVariant[]
   metadata: {
     highlights: Highlight[]
-    dimensionImages: ProductImage[]
   }
 }
 
@@ -144,7 +142,6 @@ async function crawlVariantPage(url: string): Promise<{
   highlights: Highlight[]
   handle: string
   swatchStyle?: string
-  dimensionImages: ProductImage[]
 }> {
   const response = await axios.get(url)
   const $ = cheerio.load(response.data)
@@ -227,23 +224,6 @@ async function crawlVariantPage(url: string): Promise<{
   // Add this line after collecting all images
   const uniqueImages = removeDuplicateImages(images)
 
-  // Extract dimension images
-  const dimensionImages: ProductImage[] = []
-  $('.product-gallery img').each(async (_, element) => {
-    const src = $(element).attr('src')
-    if (!src) return
-    
-    if (src.toLowerCase().includes('_crop_')) return
-
-    const url = normalizeImageUrl(src)
-    const alt = $(element).attr('alt') || ''
-    if (dimensionImages.length === 0) {
-      const isDimension = await isDimensionImage(url)
-      if (isDimension) {
-        dimensionImages.push({ url: cleanImageUrl(url), alt })
-      }
-    }
-  })
 
   // Remove duplicates before returning
   return {
@@ -254,8 +234,7 @@ async function crawlVariantPage(url: string): Promise<{
     specifications,
     highlights,
     handle,
-    swatchStyle,
-    dimensionImages
+    swatchStyle
   }
 }
 
@@ -399,8 +378,7 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
             shippingCartons: variantData.specifications['No. of Shipping Cartons'],
             highlights: variantData.highlights,
             handle: variantData.handle,
-            swatchStyle: variantData.swatchStyle,
-            dimensionImages: variantData.dimensionImages
+            swatchStyle: variantData.swatchStyle
           }
         })
       } catch (error) {
@@ -410,7 +388,6 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
     
     // Extract base product images and dimension images
     const rawImages: ProductImage[] = []
-    const dimensionImages: ProductImage[] = []
     
     // Process all product images
     await Promise.all($('img[src*="/products/"], img[src*="/files/"]')
@@ -429,15 +406,6 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
         const url = normalizeImageUrl(src)
         const alt = $(element).attr('alt') || ''
 
-        // Check if it's a dimension image
-        if (dimensionImages.length === 0) {
-          const isDimension = await isDimensionImage(url)
-          
-          if (isDimension) {
-            console.log('Dimension Image:', url)
-            dimensionImages.push({ url: cleanImageUrl(url), alt })
-          }
-        }
         if (isLargeImage(url)) {
           rawImages.push({ url: cleanImageUrl(url), alt })
         }
@@ -509,8 +477,7 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
       specifications,
       variants,
       metadata: {
-        highlights,
-        dimensionImages
+        highlights
       }
     }
   } catch (error) {
@@ -565,8 +532,7 @@ export function convertToApiFormat(productData: ProductDetails) : CreateProductW
       specifications: productData.specifications,
       category: categoryInfo.parent,
       subcategory: categoryInfo.subcategory,
-      highlights: productData.metadata.highlights,
-      dimensionImages: productData.metadata.dimensionImages
+      highlights: productData.metadata.highlights
     },
     status: 'published',
     shipping_profile_id: 'sp_01JM18DSFFZW6A3X2BVSRWHYAK',

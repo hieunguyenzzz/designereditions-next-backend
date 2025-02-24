@@ -28,6 +28,16 @@ interface ProductVariant {
   images: string[]
   metadata: {
     specifications: Record<string, string>
+    dimensions?: string
+    material?: string
+    weight?: string
+    assembly?: string
+    materialDetails?: string
+    indoorOutdoorUse?: string
+    tabletopHeight?: string
+    tabletopThickness?: string
+    packagingDimensions?: string
+    shippingCartons?: string
     highlights: Highlight[]
     handle: string
     swatchStyle?: string
@@ -271,68 +281,71 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
   try {
     const response = await axios.get(url)
     const $ = cheerio.load(response.data)
-
-    // Robust product name extraction with multiple fallback methods
-    let name = $('.product-title').first().text().trim()
     
-    // Fallback methods if first selector fails
-    if (!name) name = $('h1').first().text().trim()
-    if (!name) name = $('title').text().split('|')[0].trim()
+    // Extract basic product info
+    const name = $('h1').first().text().trim()
+    const activeOptionValue = $('.swatch.active').attr('content')?.trim() || ''
+    let subtitle = $('.product__subtitle').text().trim()
+
+    // Remove active option value from subtitle if present
+    if (activeOptionValue) {
+      subtitle = subtitle
+        .replace(`, ${activeOptionValue}`, '')  // Remove with comma
+        .replace(` ${activeOptionValue}`, '')   // Remove without comma
+        .trim()
+    }
+
+    // Convert any inch measurements in subtitle to cm
+    subtitle = convertMeasurements(subtitle)
+
+    console.log('Active Option:', activeOptionValue)
+    console.log('Cleaned Subtitle:', subtitle)
     
-    // If still no name, use the last part of the URL
-    if (!name) {
-      name = url.split('/').pop()?.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Unnamed Product'
-    }
-
-    // Ensure name is not empty
-    if (!name) {
-      throw new Error('Could not extract product name')
-    }
-
-    const subtitle = $('.product-subtitle').first().text().trim() || ''
-
-    // Extract options (materials/colors)
-    const options: ProductOption[] = []
-    const optionElements = $('.product-options .option')
+    // Extract base prices
+    const priceText = $('h1').nextAll().find('span').first().text().trim()
+    const originalPrice = parseFloat(priceText.replace(/[^0-9.]/g, '')) || 0
     
-    if (optionElements.length > 0) {
-      const optionName = optionElements.first().find('.option-name').text().trim()
-      const optionValues = optionElements.map((_, el) => 
-        $(el).find('.option-value').text().trim()
-      ).get()
-
-      options.push({
-        name: optionName || 'Material',
-        values: optionValues
-      })
-    }
-
-    // If no options found, create a default option
-    if (options.length === 0) {
-      options.push({
-        name: 'Material',
-        values: [`${name} ${subtitle}`.trim()]
-      })
-    }
-
-    // Prepare variant URLs
+    const salePriceText = $('h1').nextAll().find('span').last().text().trim()
+    const salePrice = parseFloat(salePriceText.replace(/[^0-9.]/g, ''))
+    
+    // Extract product options and build variant URLs
+    const options: ProductOption[] = [{
+      name: 'Material',
+      values: []
+    }]
+    
     const variantUrls: string[] = []
-    const variantElements = $('.product-variant-link')
     
-    if (variantElements.length > 0) {
-      variantElements.each((_, el) => {
-        const variantUrl = $(el).attr('href')
-        if (variantUrl) {
+    // Find all marble style options and their URLs
+    $('a[name="product_button"]').each((_, element) => {
+      const href = $(element).attr('href')
+      const value = $(element).find('span.whitespace-nowrap').text().trim()
+      
+      if (value && href) {
+        options[0].values.push(value)
+        const variantUrl = href.startsWith('http') ? 
+          href : 
+          new URL(href, 'https://interioricons.com').href
+        variantUrls.push(variantUrl)
+      }
+    })
+
+    // If no variants found, try alternative selector
+    if (options[0].values.length === 0) {
+      $('div[role="radiogroup"] a').each((_, element) => {
+        const href = $(element).attr('href')
+        const value = $(element).find('span:not(.visually-hidden)').text().trim()
+        
+        if (value && href) {
+          options[0].values.push(value)
+          const variantUrl = href.startsWith('http') ? 
+            href : 
+            new URL(href, 'https://interioricons.com').href
           variantUrls.push(variantUrl)
         }
       })
     }
-
-    // If no variant URLs found, use the product URL
-    if (variantUrls.length === 0) {
-      variantUrls.push(url)
-    }
-
+    
     // Crawl each variant
     const variants: ProductVariant[] = []
     for (let i = 0; i < options[0].values.length; i++) {
@@ -343,7 +356,7 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
         const variantData = await crawlVariantPage(variantUrl)
         variants.push({
           title: `${name} - ${variantValue}`,
-          sku: variantData.sku || `${name.toLowerCase().replace(/\s+/g, '-')}-${variantValue.toLowerCase().replace(/\s+/g, '-')}`,
+          sku: variantData.sku,
           options: [{
             value: variantValue
           }],
@@ -360,32 +373,26 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
           images: variantData.images,
           metadata: {
             specifications: variantData.specifications,
+            dimensions: variantData.specifications['Product Dimensions'],
+            material: variantData.specifications['Material'],
+            weight: variantData.specifications['Product Weight'],
+            assembly: variantData.specifications['Assembly Requirements'],
+            materialDetails: variantData.specifications['Material Details'],
+            indoorOutdoorUse: variantData.specifications['Indoor or Outdoor Use'],
+            tabletopHeight: variantData.specifications['Tabletop Height'],
+            tabletopThickness: variantData.specifications['Tabletop Thickness'],
+            packagingDimensions: variantData.specifications['Packaging Dimensions'],
+            shippingCartons: variantData.specifications['No. of Shipping Cartons'],
             highlights: variantData.highlights,
             handle: variantData.handle,
             swatchStyle: variantData.swatchStyle
           }
         })
       } catch (error) {
-        // If crawling variant fails, create a default variant with product URL
-        variants.push({
-          title: `${name} - ${variantValue}`,
-          sku: `${name.toLowerCase().replace(/\s+/g, '-')}-${variantValue.toLowerCase().replace(/\s+/g, '-')}`,
-          options: [{
-            value: variantValue
-          }],
-          prices: [{
-            amount: 0, // You might want to extract price from the main page
-            currency_code: 'usd'
-          }],
-          images: [], // You might want to extract images from the main page
-          metadata: {
-            specifications: {},
-            handle: url.split('/').pop()
-          }
-        })
+        throw new Error(`Failed to crawl variant ${variantValue}: ${error.message}`)
       }
     }
-
+    
     // Replace the image crawling section with JSON fetch
     const rawImages = await fetchProductJson(url)
     
@@ -447,8 +454,8 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
     return {
       name,
       subtitle,
-      originalPrice: 0, // You might want to extract this from the main page
-      salePrice: 0,
+      originalPrice,
+      salePrice,
       options,
       images,
       description,
@@ -483,14 +490,14 @@ export async function convertToApiFormat(productData: ProductDetails): Promise<C
     let dimensionImageUrl = null
 
     // Reverse the images array and loop through
-    // const reversedImages = [...variant.images].reverse()
-    // for (const imageUrl of reversedImages) {
-    //   const isDimension = await isDimensionImage(imageUrl)
-    //   if (isDimension) {
-    //     dimensionImageUrl = imageUrl
-    //     break
-    //   }
-    // }
+    const reversedImages = [...variant.images].reverse()
+    for (const imageUrl of reversedImages) {
+      const isDimension = await isDimensionImage(imageUrl)
+      if (isDimension) {
+        dimensionImageUrl = imageUrl
+        break
+      }
+    }
 
     return {
       ...variant,

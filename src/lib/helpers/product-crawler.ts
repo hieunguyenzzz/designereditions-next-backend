@@ -28,16 +28,6 @@ interface ProductVariant {
   images: string[]
   metadata: {
     specifications: Record<string, string>
-    dimensions?: string
-    material?: string
-    weight?: string
-    assembly?: string
-    materialDetails?: string
-    indoorOutdoorUse?: string
-    tabletopHeight?: string
-    tabletopThickness?: string
-    packagingDimensions?: string
-    shippingCartons?: string
     highlights: Highlight[]
     handle: string
     swatchStyle?: string
@@ -370,16 +360,6 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
           images: variantData.images,
           metadata: {
             specifications: variantData.specifications,
-            dimensions: variantData.specifications['Product Dimensions'],
-            material: variantData.specifications['Material'],
-            weight: variantData.specifications['Product Weight'],
-            assembly: variantData.specifications['Assembly Requirements'],
-            materialDetails: variantData.specifications['Material Details'],
-            indoorOutdoorUse: variantData.specifications['Indoor or Outdoor Use'],
-            tabletopHeight: variantData.specifications['Tabletop Height'],
-            tabletopThickness: variantData.specifications['Tabletop Thickness'],
-            packagingDimensions: variantData.specifications['Packaging Dimensions'],
-            shippingCartons: variantData.specifications['No. of Shipping Cartons'],
             highlights: variantData.highlights,
             handle: variantData.handle,
             swatchStyle: variantData.swatchStyle
@@ -503,14 +483,14 @@ export async function convertToApiFormat(productData: ProductDetails): Promise<C
     let dimensionImageUrl = null
 
     // Reverse the images array and loop through
-    const reversedImages = [...variant.images].reverse()
-    for (const imageUrl of reversedImages) {
-      const isDimension = await isDimensionImage(imageUrl)
-      if (isDimension) {
-        dimensionImageUrl = imageUrl
-        break
-      }
-    }
+    // const reversedImages = [...variant.images].reverse()
+    // for (const imageUrl of reversedImages) {
+    //   const isDimension = await isDimensionImage(imageUrl)
+    //   if (isDimension) {
+    //     dimensionImageUrl = imageUrl
+    //     break
+    //   }
+    // }
 
     return {
       ...variant,

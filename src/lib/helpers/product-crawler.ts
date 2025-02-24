@@ -133,6 +133,30 @@ function normalizeImageUrl(url: string): string {
   return url
 }
 
+async function fetchProductJson(url: string): Promise<ProductImage[]> {
+  try {
+    // Convert URL to JSON endpoint
+    const jsonUrl = url.endsWith('.json') ? url : `${url}.json`
+    const response = await axios.get(jsonUrl)
+    
+    // Extract images from JSON response
+    const images: ProductImage[] = response.data.product.images
+      .filter(img => {
+        const imgUrl = img.src.toLowerCase()
+        return !imgUrl.includes('lifestyle')
+      })
+      .map(img => ({
+        url: cleanImageUrl(img.src),
+        alt: img.alt || ''
+      }))
+
+    return images
+  } catch (error) {
+    console.error('Error fetching product JSON:', error)
+    return []
+  }
+}
+
 async function crawlVariantPage(url: string): Promise<{
   price: number
   salePrice?: number
@@ -157,28 +181,9 @@ async function crawlVariantPage(url: string): Promise<{
   const originalPrice = parseInt($('.old-price').eq(1).attr('data-amount') || '0')
   const salePrice = parseInt($('.variant-price.sale-price').attr('data-amount') || '0')
   
-  // Extract images specific to this variant
-  const images: string[] = []
-  $('.zoom-trigger').each((_, element) => {
-    const img = $(element).find('img.lg\\:block').first()
-    const url = img.attr('src')
-    if (url) {
-      const normalizedUrl = normalizeImageUrl(url)
-      if (isLargeImage(normalizedUrl)) {
-        images.push(normalizedUrl)
-      }
-    }
-  })
-
-  // If no images found with primary selector, try fallback
-  if (images.length === 0) {
-    $('img[src*="/files/"]').each((_, element) => {
-      const url = $(element).attr('src')
-      if (url && isLargeImage(url)) {
-        images.push(url)
-      }
-    })
-  }
+  // Replace the image crawling section with JSON fetch
+  const variantImages = await fetchProductJson(url)
+  const images = variantImages.map(img => cleanImageUrl(img.url))
 
   // Extract specifications for this variant
   const specifications: Record<string, string> = {}
@@ -386,31 +391,9 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
       }
     }
     
-    // Extract base product images and dimension images
-    const rawImages: ProductImage[] = []
+    // Replace the image crawling section with JSON fetch
+    const rawImages = await fetchProductJson(url)
     
-    // Process all product images
-    await Promise.all($('img[src*="/products/"], img[src*="/files/"]')
-      .not('.product-recommendations img')
-      .not('.you-might-also img')
-      .not('.instagram-roundel img')
-      .not('.flex.gap-8.justify-end img')
-      .not('a[href*="/collections/"] img')
-      .map(async (_, element) => {
-        const src = $(element).attr('src')
-        if (!src) return
-
-        if (src.toLowerCase().includes('lifestyle')) return
-        if (src.toLowerCase().includes('_crop_')) return
-
-        const url = normalizeImageUrl(src)
-        const alt = $(element).attr('alt') || ''
-
-        if (isLargeImage(url)) {
-          rawImages.push({ url: cleanImageUrl(url), alt })
-        }
-      }).get())
-
     // Remove duplicates based on cleaned URLs
     const uniqueUrls = new Map<string, ProductImage>()
     rawImages.forEach(img => {
@@ -502,6 +485,8 @@ export function convertToApiFormat(productData: ProductDetails) : CreateProductW
 
   const variants = productData.variants.map(variant => ({
     ...variant,
+    allow_backorder: true,
+    manage_inventory: false,
     options: {
       Material: variant.options[0].value
     },

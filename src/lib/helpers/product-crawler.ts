@@ -41,6 +41,7 @@ interface ProductVariant {
     highlights: Highlight[]
     handle: string
     swatchStyle?: string
+    dimensionImage?: string
   }
 }
 
@@ -259,13 +260,14 @@ async function isDimensionImage(imageUrl: string): Promise<boolean> {
             {
               type: "image_url",
               image_url: {
-                url: `https://thumbor.hieunguyen.dev/unsafe/300x/${imageUrl}`
+                url: `${imageUrl}`,
+                detail: "low"
               }
             }
           ],
         },
       ],
-      max_tokens: 1,
+      max_tokens: 300,
     });
 
     return response.choices[0].message.content?.toLowerCase() === 'true';
@@ -469,7 +471,7 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
 }
 
 // Helper to convert crawled data to API format
-export function convertToApiFormat(productData: ProductDetails) : CreateProductWorkflowInputDTO {
+export async function convertToApiFormat(productData: ProductDetails): Promise<CreateProductWorkflowInputDTO> {
   if (!productData.name) {
     throw new Error('Product name/title is required')
   }
@@ -483,16 +485,32 @@ export function convertToApiFormat(productData: ProductDetails) : CreateProductW
     .replace(/^-+|-+$/g, '') // Remove leading/trailing dashes
     || productData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') // Fallback to name
 
-  const variants = productData.variants.map(variant => ({
-    ...variant,
-    allow_backorder: true,
-    manage_inventory: false,
-    options: {
-      Material: variant.options[0].value
-    },
-    metadata: {
-      ...variant.metadata,
-      images: variant.images
+  // Process variants with dimension image detection
+  const variants = await Promise.all(productData.variants.map(async variant => {
+    let dimensionImageUrl = null
+
+    // Reverse the images array and loop through
+    const reversedImages = [...variant.images].reverse()
+    for (const imageUrl of reversedImages) {
+      const isDimension = await isDimensionImage(imageUrl)
+      if (isDimension) {
+        dimensionImageUrl = imageUrl
+        break
+      }
+    }
+
+    return {
+      ...variant,
+      allow_backorder: true,
+      manage_inventory: false,
+      options: {
+        Material: variant.options[0].value
+      },
+      metadata: {
+        ...variant.metadata,
+        images: variant.images,
+        dimensionImage: dimensionImageUrl
+      }
     }
   }))
 

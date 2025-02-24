@@ -69,7 +69,7 @@ export const POST = async (
           try {
             console.log(`\n🌐 Crawling URL (${i + 1}/${productUrls.length}):`, url)
             const crawledData = await crawlProductPage(url)
-            const productData = convertToApiFormat(crawledData)
+            const productData = await convertToApiFormat(crawledData, req.scope)
             const product = await createProduct(req.scope, productData)
             return product
           } catch (error) {
@@ -90,7 +90,7 @@ export const POST = async (
       console.log('\n🌐 Crawling single URL:', validatedBody.productUrl)
       
       const crawledData = await crawlProductPage(validatedBody.productUrl)
-      const productData = convertToApiFormat(crawledData)
+      const productData = await convertToApiFormat(crawledData, req.scope)
       const product = await createProduct(req.scope, productData)
       res.status(201).json({ product })
     }

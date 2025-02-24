@@ -345,6 +345,13 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
         }
       })
     }
+
+    // If still no variants found, create a default variant
+    if (options[0].values.length === 0) {
+      const defaultVariantValue = `${name}${subtitle ? ` - ${subtitle}` : ''}`
+      options[0].values.push(defaultVariantValue)
+      variantUrls.push(url)
+    }
     
     // Crawl each variant
     const variants: ProductVariant[] = []
@@ -490,14 +497,14 @@ export async function convertToApiFormat(productData: ProductDetails): Promise<C
     let dimensionImageUrl = null
 
     // Reverse the images array and loop through
-    const reversedImages = [...variant.images].reverse()
-    for (const imageUrl of reversedImages) {
-      const isDimension = await isDimensionImage(imageUrl)
-      if (isDimension) {
-        dimensionImageUrl = imageUrl
-        break
-      }
-    }
+    // const reversedImages = [...variant.images].reverse()
+    // for (const imageUrl of reversedImages) {
+    //   const isDimension = await isDimensionImage(imageUrl)
+    //   if (isDimension) {
+    //     dimensionImageUrl = imageUrl
+    //     break
+    //   }
+    // }
 
     return {
       ...variant,

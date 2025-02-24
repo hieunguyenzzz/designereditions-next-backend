@@ -1,6 +1,7 @@
 import { MedusaContainer } from "@medusajs/framework/types"
 import { createProductsWorkflow, createPriceListsWorkflow } from "@medusajs/medusa/core-flows"
-import { CreateProductWorkflowInputDTO } from "@medusajs/framework/types"
+
+import { CreateProductWorkflowInputDTO, CreatePriceListWorkflowInputDTO } from "@medusajs/framework/types"
 import { Modules } from "@medusajs/framework/utils"
 import type { 
   ProductVariant, 
@@ -60,7 +61,7 @@ export async function createProduct(
         .filter(price => price.price_list_id)
         .map(price => ({
           variant_id: createdVariant.id,
-          amount: price.amount,
+          amount: Number(price.amount),
           currency_code: price.currency_code
         }))
 
@@ -71,19 +72,18 @@ export async function createProduct(
     if (priceListPrices.length > 0) {
       try {
         await createPriceListsWorkflow(container).run({
-          input: [{
-            name: `${product.title} Sale Prices`,
-            description: `Sale prices for ${product.title}`,
-            type: "sale",
-            status: "active",
-            includes_tax: false,
-            prices: priceListPrices.map(price => ({
-              variant_id: price.variant_id,
-              amount: price.amount,
-              currency_code: price.currency_code,
-              min_quantity: 1
-            }))
-          }]
+          input: {
+            price_lists_data: [{
+              title: `${product.title} Sale Prices`,
+              description: `Sale prices for ${product.title}`,
+              status: "active",
+              prices: priceListPrices.map(price => ({
+                variant_id: price.variant_id,
+                amount: Number(price.amount),
+                currency_code: price.currency_code
+              }))
+            }]
+          }
         })
       } catch (error) {
         console.error('Error creating price list:', error)

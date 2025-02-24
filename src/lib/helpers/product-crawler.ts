@@ -374,7 +374,7 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
           ...(variantData.salePrice ? [{
             amount: variantData.salePrice,
             currency_code: 'usd',
-            price_list_id: 'plist_01JM1YCRNA1AVA96N78YBKM2XK'
+            price_list_id: 'plist_01JMVWX9FP0GXHPWST7RRN8GCX'
           }] : [])
         ],
           images: variantData.images,

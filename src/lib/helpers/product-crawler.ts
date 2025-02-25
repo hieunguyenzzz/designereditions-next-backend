@@ -397,11 +397,6 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
             amount: variantData.price,
             currency_code: 'usd'
           },
-          ...(variantData.salePrice ? [{
-            amount: variantData.salePrice,
-            currency_code: 'usd',
-            price_list_id: 'plist_01JMVWX9FP0GXHPWST7RRN8GCX'
-          }] : [])
         ],
           images: variantData.images,
           metadata: {
@@ -516,14 +511,19 @@ export async function convertToApiFormat(productData: ProductDetails): Promise<C
     let dimensionImageUrl = null
 
     // Reverse the images array and loop through
-    // const reversedImages = [...variant.images].reverse()
-    // for (const imageUrl of reversedImages) {
-    //   const isDimension = await isDimensionImage(imageUrl)
-    //   if (isDimension) {
-    //     dimensionImageUrl = imageUrl
-    //     break
-    //   }
-    // }
+    const reversedImages = [...variant.images].reverse()
+    for (const imageUrl of reversedImages) {
+      const isDimension = await isDimensionImage(imageUrl)
+      if (isDimension) {
+        dimensionImageUrl = imageUrl
+        break
+      }
+    }
+
+    // Filter out the dimension image from the images array
+    const filteredImages = dimensionImageUrl 
+      ? variant.images.filter(img => img !== dimensionImageUrl)
+      : variant.images
 
     return {
       ...variant,
@@ -532,9 +532,10 @@ export async function convertToApiFormat(productData: ProductDetails): Promise<C
       options: {
         Material: variant.options[0].value
       },
+      images: filteredImages, // Use filtered images
       metadata: {
         ...variant.metadata,
-        images: variant.images,
+        images: filteredImages, // Also update metadata images
         dimensionImage: dimensionImageUrl
       }
     }

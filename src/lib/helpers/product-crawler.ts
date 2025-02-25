@@ -42,6 +42,7 @@ interface ProductVariant {
     handle: string
     swatchStyle?: string
     dimensionImage?: string
+    salePrice?: number
   }
 }
 
@@ -380,19 +381,10 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
           images: variantData.images,
           metadata: {
             specifications: variantData.specifications,
-            dimensions: variantData.specifications['Product Dimensions'],
-            material: variantData.specifications['Material'],
-            weight: variantData.specifications['Product Weight'],
-            assembly: variantData.specifications['Assembly Requirements'],
-            materialDetails: variantData.specifications['Material Details'],
-            indoorOutdoorUse: variantData.specifications['Indoor or Outdoor Use'],
-            tabletopHeight: variantData.specifications['Tabletop Height'],
-            tabletopThickness: variantData.specifications['Tabletop Thickness'],
-            packagingDimensions: variantData.specifications['Packaging Dimensions'],
-            shippingCartons: variantData.specifications['No. of Shipping Cartons'],
             highlights: variantData.highlights,
             handle: variantData.handle,
-            swatchStyle: variantData.swatchStyle
+            swatchStyle: variantData.swatchStyle,
+            salePrice: variantData.salePrice || null
           }
         })
       } catch (error) {
@@ -528,6 +520,7 @@ export async function convertToApiFormat(productData: ProductDetails): Promise<C
     title: productData.name,
     subtitle: productData.subtitle,
     description: productData.description,
+    material: productData.specifications['Material'],
     handle,
     options: [{
       title: "Material",

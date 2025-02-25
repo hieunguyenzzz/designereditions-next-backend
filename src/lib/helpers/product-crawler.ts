@@ -43,6 +43,7 @@ interface ProductVariant {
     swatchStyle?: string
     dimensionImage?: string
     salePrice?: number
+    tags?: string[]
   }
 }
 
@@ -58,6 +59,7 @@ interface ProductDetails {
   variants: ProductVariant[]
   metadata: {
     highlights: Highlight[]
+    productType?: string
   }
 }
 
@@ -135,7 +137,10 @@ function normalizeImageUrl(url: string): string {
   return url
 }
 
-async function fetchProductJson(url: string): Promise<ProductImage[]> {
+async function fetchProductJson(url: string): Promise<{
+  images: ProductImage[]
+  productType?: string
+}> {
   try {
     // Convert URL to JSON endpoint
     const jsonUrl = url.endsWith('.json') ? url : `${url}.json`
@@ -152,10 +157,19 @@ async function fetchProductJson(url: string): Promise<ProductImage[]> {
         alt: img.alt || ''
       }))
 
-    return images
+    // Extract product type
+    const productType = response.data.product.product_type || undefined
+
+    return { 
+      images, 
+      productType 
+    }
   } catch (error) {
     console.error('Error fetching product JSON:', error)
-    return []
+    return { 
+      images: [],
+      productType: undefined 
+    }
   }
 }
 
@@ -168,12 +182,23 @@ async function crawlVariantPage(url: string): Promise<{
   highlights: Highlight[]
   handle: string
   swatchStyle?: string
+  tags: string[]
 }> {
   const response = await axios.get(url)
   const $ = cheerio.load(response.data)
 
   // Extract handle from URL
   const handle = url.split('/').pop()?.split('?')[0] || ''
+
+  // Fetch JSON data for the variant
+  let tags: string[] = []
+  try {
+    const jsonUrl = `https://interioricons.com/products/${handle}.json`
+    const jsonResponse = await axios.get(jsonUrl)
+    tags = jsonResponse.data.product.tags?.split(',').map(tag => tag.trim()) || []
+  } catch (error) {
+    console.error(`Error fetching JSON for variant ${handle}:`, error)
+  }
 
   // Extract swatch style
   const swatchStyle = $('li.swatch.active').attr('style') || 
@@ -185,7 +210,7 @@ async function crawlVariantPage(url: string): Promise<{
   
   // Replace the image crawling section with JSON fetch
   const variantImages = await fetchProductJson(url)
-  const images = variantImages.map(img => cleanImageUrl(img.url))
+  const images = variantImages.images.map(img => cleanImageUrl(img.url))
 
   // Extract specifications for this variant
   const specifications: Record<string, string> = {}
@@ -231,7 +256,6 @@ async function crawlVariantPage(url: string): Promise<{
   // Add this line after collecting all images
   const uniqueImages = removeDuplicateImages(images)
 
-
   // Remove duplicates before returning
   return {
     price: originalPrice,
@@ -241,7 +265,8 @@ async function crawlVariantPage(url: string): Promise<{
     specifications,
     highlights,
     handle,
-    swatchStyle
+    swatchStyle,
+    tags
   }
 }
 
@@ -384,7 +409,8 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
             highlights: variantData.highlights,
             handle: variantData.handle,
             swatchStyle: variantData.swatchStyle,
-            salePrice: variantData.salePrice || null
+            salePrice: variantData.salePrice || null,
+            tags: variantData.tags
           }
         })
       } catch (error) {
@@ -392,8 +418,8 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
       }
     }
     
-    // Replace the image crawling section with JSON fetch
-    const rawImages = await fetchProductJson(url)
+    // Fetch JSON data
+    const { images: rawImages, productType } = await fetchProductJson(url)
     
     // Remove duplicates based on cleaned URLs
     const uniqueUrls = new Map<string, ProductImage>()
@@ -461,7 +487,8 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
       specifications,
       variants,
       metadata: {
-        highlights
+        highlights,
+        productType
       }
     }
   } catch (error) {
@@ -535,7 +562,8 @@ export async function convertToApiFormat(productData: ProductDetails): Promise<C
       specifications: productData.specifications,
       category: categoryInfo.parent,
       subcategory: categoryInfo.subcategory,
-      highlights: productData.metadata.highlights
+      highlights: productData.metadata.highlights,
+      productType: productData.metadata.productType
     },
     status: 'published',
     shipping_profile_id: 'sp_01JM18DSFFZW6A3X2BVSRWHYAK',

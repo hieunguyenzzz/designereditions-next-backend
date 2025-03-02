@@ -2,7 +2,7 @@ import axios from 'axios'
 import * as cheerio from 'cheerio'
 import { CreateProductWorkflowInputDTO } from "@medusajs/framework/types"
 import { getCategoryFromSubtitle } from './crawl-attributes/category-mapper'
-import OpenAI from 'openai'
+import { openaiService } from '../services/openai'
 
 interface ProductOption {
   name: string
@@ -69,10 +69,6 @@ interface Highlight {
   title: string
   content: string
 }
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
 
 function cleanImageUrl(url: string): string {
   // Remove size dimensions like _1180x, _640x etc from the URL
@@ -268,39 +264,6 @@ async function crawlVariantPage(url: string): Promise<{
     handle,
     swatchStyle,
     tags
-  }
-}
-
-async function isDimensionImage(imageUrl: string): Promise<boolean> {
-  console.log('Checking if image is a dimension image:', imageUrl)
-  try {
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "user",
-          content: [
-            { 
-              type: "text", 
-              text: "Is this a product dimension/measurement image? Please respond with just 'true' or 'false'." 
-            },
-            {
-              type: "image_url",
-              image_url: {
-                url: `${imageUrl}`,
-                detail: "low"
-              }
-            }
-          ],
-        },
-      ],
-      max_tokens: 300,
-    });
-
-    return response.choices[0].message.content?.toLowerCase() === 'true';
-  } catch (error) {
-    console.error('Error detecting dimension image:', error);
-    return false;
   }
 }
 
@@ -515,7 +478,7 @@ export async function convertToApiFormat(productData: ProductDetails): Promise<C
     // Reverse the images array and loop through
     const reversedImages = [...variant.images].reverse()
     for (const imageUrl of reversedImages) {
-      const isDimension = await isDimensionImage(imageUrl)
+      const isDimension = await openaiService.isDimensionImage(imageUrl)
       if (isDimension) {
         dimensionImageUrl = imageUrl
         break

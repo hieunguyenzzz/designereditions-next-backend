@@ -44,6 +44,7 @@ interface ProductVariant {
     dimensionImage?: string
     salePrice?: number
     tags?: string[]
+    normalPrice: number
   }
 }
 
@@ -404,8 +405,9 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
             highlights: variantData.highlights,
             handle: variantData.handle,
             swatchStyle: variantData.swatchStyle,
-            salePrice: variantData.salePrice || null,
-            tags: variantData.tags
+            salePrice: variantData.salePrice || undefined,
+            tags: variantData.tags,
+            normalPrice: variantData.price
           }
         })
       } catch (error) {
@@ -508,7 +510,7 @@ export async function convertToApiFormat(productData: ProductDetails): Promise<C
 
   // Process variants with dimension image detection
   const variants = await Promise.all(productData.variants.map(async variant => {
-    let dimensionImageUrl = null
+    let dimensionImageUrl: string | undefined = undefined;
 
     // Reverse the images array and loop through
     const reversedImages = [...variant.images].reverse()
@@ -536,7 +538,8 @@ export async function convertToApiFormat(productData: ProductDetails): Promise<C
       metadata: {
         ...variant.metadata,
         images: filteredImages, // Also update metadata images
-        dimensionImage: dimensionImageUrl
+        dimensionImage: dimensionImageUrl,
+        normalPrice: variant.prices[0].amount
       }
     }
   }))

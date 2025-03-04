@@ -14,7 +14,7 @@ export async function createProduct(
   if (input.variants) {
     for (const variant of input.variants) {
       if (variant.sku) {
-        const [existingVariants] = await productService.listAndCountProductVariants({
+        const [existingVariants, count] = await productService.listAndCountProductVariants({
           q: variant.sku
         })
         

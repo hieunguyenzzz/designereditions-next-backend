@@ -6,8 +6,13 @@ import { createProduct } from "../../../lib/helpers/product-creator"
 import { crawlProductPage, convertToApiFormat } from "../../../lib/helpers/product-crawler"
 import { z } from "zod"
 import axios from 'axios'
-import type { Product } from "@medusajs/medusa"
-import util from "util"
+import { Modules } from "@medusajs/framework/utils"
+
+// Function to extract handle from URL
+function extractHandleFromUrl(url: string): string {
+  const urlParts = url.split('/products/')
+  return urlParts.length > 1 ? urlParts[1].split('?')[0] : ''
+}
 
 // Update the validation schema to handle URL encoding
 const CreateProductSchema = z.object({
@@ -53,10 +58,12 @@ export const POST = async (
 ) => {
   try {
     const validatedBody = CreateProductSchema.parse(req.body)
-    const createdProducts: Product[] = []
+    const createdProducts: any[] = []
+
+
+    const productService = req.scope.resolve(Modules.PRODUCT)
 
     if (validatedBody.sitemapUrl) {
-      console.log('\n🗺️ Processing sitemap:', validatedBody.sitemapUrl)
       
       const productUrls = await extractProductUrlsFromSitemap(validatedBody.sitemapUrl)
       console.log(`\n📋 Found ${productUrls.length} product URLs`)
@@ -67,9 +74,30 @@ export const POST = async (
         const batch = productUrls.slice(i, i + batchSize)
         const batchPromises = batch.map(async (url) => {
           try {
+            // Extract handle and check if product exists
+            const handle = extractHandleFromUrl(url)
+            const [existingVariants, count] = await productService.listAndCountProductVariants({
+              q: handle
+            })
+
+            // Skip if product already exists
+            if (count > 0) {
+              console.log(`\n⏩ Skipping existing product: ${url}`)
+              return null
+            }
+
+            const [existingProducts] = await productService.listAndCountProducts({
+              q: handle
+            })
+
+            if (existingProducts.length > 0) {
+              console.log(`\n⏩ Skipping existing product: ${url}`)
+              return null
+            }
+
             console.log(`\n🌐 Crawling URL (${i + 1}/${productUrls.length}):`, url)
             const crawledData = await crawlProductPage(url)
-            const productData = await convertToApiFormat(crawledData, req.scope)
+            const productData = await convertToApiFormat(crawledData)
             const product = await createProduct(req.scope, productData)
             return product
           } catch (error) {
@@ -87,10 +115,25 @@ export const POST = async (
         total: createdProducts.length
       })
     } else if (validatedBody.productUrl) {
+      
+      
+      // Extract handle and check if product exists
+      const handle = extractHandleFromUrl(validatedBody.productUrl)
+      const [existingVariants, count] = await productService.listAndCountProductVariants({
+        q: handle
+      })
+
+      // Skip if product already exists
+      if (count > 0) {
+        return res.status(200).json({ 
+          message: 'Product already exists',
+          handle: handle 
+        })
+      }
       console.log('\n🌐 Crawling single URL:', validatedBody.productUrl)
       
       const crawledData = await crawlProductPage(validatedBody.productUrl)
-      const productData = await convertToApiFormat(crawledData, req.scope)
+      const productData = await convertToApiFormat(crawledData)
       const product = await createProduct(req.scope, productData)
       res.status(201).json({ product })
     }

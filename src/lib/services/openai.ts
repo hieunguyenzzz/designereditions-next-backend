@@ -102,11 +102,9 @@ export class OpenAIService {
     // Check if we have a cached result
     const cachedResult = await this.getCachedValue(urlHash)
     if (cachedResult !== null) {
-      console.log('Using cached result for image:', imageUrl)
       return cachedResult
     }
     
-    console.log('Checking if image is a dimension image:', imageUrl)
     try {
       const response = await this.openai.chat.completions.create({
         model: "gpt-4o-mini",

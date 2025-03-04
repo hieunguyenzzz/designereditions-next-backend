@@ -258,7 +258,7 @@ async function crawlVariantPage(url: string): Promise<{
     price: originalPrice,
     salePrice: salePrice || undefined,
     images: uniqueImages,
-    sku: specifications['SKU'] || '',
+    sku: handle,
     specifications,
     highlights,
     handle,
@@ -288,8 +288,6 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
     // Convert any inch measurements in subtitle to cm
     subtitle = convertMeasurements(subtitle)
 
-    console.log('Active Option:', activeOptionValue)
-    console.log('Cleaned Subtitle:', subtitle)
     
     // Extract base prices
     const priceText = $('h1').nextAll().find('span').first().text().trim()
@@ -353,7 +351,7 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
         const variantData = await crawlVariantPage(variantUrl)
         variants.push({
           title: `${name} - ${variantValue}`,
-          sku: variantData.sku,
+          sku: variantData.handle,
           options: [{
             value: variantValue
           }],

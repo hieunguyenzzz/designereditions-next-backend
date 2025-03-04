@@ -68,46 +68,41 @@ export const POST = async (
       const productUrls = await extractProductUrlsFromSitemap(validatedBody.sitemapUrl)
       console.log(`\n📋 Found ${productUrls.length} product URLs`)
 
-      // Process products in batches to avoid overwhelming the server
-      const batchSize = 5
-      for (let i = 0; i < productUrls.length; i += batchSize) {
-        const batch = productUrls.slice(i, i + batchSize)
-        const batchPromises = batch.map(async (url) => {
-          try {
-            // Extract handle and check if product exists
-            const handle = extractHandleFromUrl(url)
-            const [existingVariants, count] = await productService.listAndCountProductVariants({
-              q: handle
-            })
+      // Process products one by one
+      for (const url of productUrls) {
+        try {
+          // Extract handle and check if product exists
+          const handle = extractHandleFromUrl(url)
+          const [existingVariants, count] = await productService.listAndCountProductVariants({
+            q: handle
+          })
 
-            // Skip if product already exists
-            if (count > 0) {
-              console.log(`\n⏩ Skipping existing product: ${url}`)
-              return null
-            }
-
-            const [existingProducts] = await productService.listAndCountProducts({
-              q: handle
-            })
-
-            if (existingProducts.length > 0) {
-              console.log(`\n⏩ Skipping existing product: ${url}`)
-              return null
-            }
-
-            console.log(`\n🌐 Crawling URL (${i + 1}/${productUrls.length}):`, url)
-            const crawledData = await crawlProductPage(url)
-            const productData = await convertToApiFormat(crawledData)
-            const product = await createProduct(req.scope, productData)
-            return product
-          } catch (error) {
-            console.error(`\n❌ Error processing ${url}:`, error.message)
-            return null
+          // Skip if product already exists
+          if (count > 0) {
+            console.log(`\n⏩ Skipping existing product: ${url}`)
+            continue
           }
-        })
 
-        const batchResults = await Promise.all(batchPromises)
-        createdProducts.push(...batchResults.filter(p => p !== null))
+          const [existingProducts] = await productService.listAndCountProducts({
+            q: handle
+          })
+
+          if (existingProducts.length > 0) {
+            console.log(`\n⏩ Skipping existing product: ${url}`)
+            continue
+          }
+
+          console.log(`\n🌐 Crawling URL (${productUrls.indexOf(url) + 1}/${productUrls.length}):`, url)
+          const crawledData = await crawlProductPage(url)
+          const productData = await convertToApiFormat(crawledData)
+          const product = await createProduct(req.scope, productData)
+          
+          if (product) {
+            createdProducts.push(product)
+          }
+        } catch (error) {
+          console.error(`\n❌ Error processing ${url}:`, error.message)
+        }
       }
 
       res.status(201).json({ 

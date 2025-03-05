@@ -574,6 +574,13 @@ function convertMeasurements(value: string): string {
     }).replace(/\s+/g, ' ').trim()
   }
   
+  // Handle measurements using "in" notation like "38.2 in x 33 in x 38.6 in"
+  if (value.match(/\d+\.?\d*\s*in\b/i)) {
+    return value.replace(/(\d+\.?\d*)\s*in\b/gi, (_, match) => {
+      return convertInchToCm(match)
+    })
+  }
+  
   // Handle weight in parentheses like "(300 lbs)"
   if (value.includes('lbs')) {
     return value.replace(/(\d+)\s*lbs/g, (_, lbs) => {

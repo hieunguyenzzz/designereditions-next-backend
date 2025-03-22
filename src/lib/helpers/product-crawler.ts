@@ -3,6 +3,7 @@ import * as cheerio from 'cheerio'
 import { CreateProductWorkflowInputDTO } from "@medusajs/framework/types"
 import { getCategoryFromSubtitle } from './crawl-attributes/category-mapper'
 import { openaiService } from '../services/openai'
+import { transformSpecs } from './dimensionHandler'
 
 interface ProductOption {
   name: string
@@ -216,14 +217,6 @@ async function crawlVariantPage(url: string): Promise<{
     let value = $(element).find('span[class^="js-"]').text().trim()
     
     if (key && value) {
-      // Convert measurements in the value
-      value = convertMeasurements(value)
-      
-      // Special handling for combined dimensions and weight
-      if (value.includes('(')) {
-        const [dimensions, weight] = value.split('(')
-        value = `${convertMeasurements(dimensions.trim())} (${convertMeasurements(weight.trim())})`
-      }
       
       specifications[key] = value
     }
@@ -399,16 +392,7 @@ export async function crawlProductPage(url: string): Promise<ProductDetails> {
       const key = $(element).find('b').text().trim().replace(':', '').trim()
       let value = $(element).find('span[class^="js-"]').text().trim()
       
-      if (key && value) {
-        // Convert measurements in the value
-        value = convertMeasurements(value)
-        
-        // Special handling for combined dimensions and weight
-        if (value.includes('(')) {
-          const [dimensions, weight] = value.split('(')
-          value = `${convertMeasurements(dimensions.trim())} (${convertMeasurements(weight.trim())})`
-        }
-        
+      if (key && value) {        
         specifications[key] = value
       }
     })
@@ -498,6 +482,7 @@ export async function convertToApiFormat(productData: ProductDetails): Promise<C
       images: filteredImages, // Use filtered images
       metadata: {
         ...variant.metadata,
+        specifications: transformSpecs(variant.metadata.specifications),
         images: filteredImages, // Also update metadata images
         dimensionImage: dimensionImageUrl,
         normalPrice: variant.prices[0].amount
@@ -524,7 +509,7 @@ export async function convertToApiFormat(productData: ProductDetails): Promise<C
     })),
     thumbnail,
     metadata: {
-      specifications: productData.specifications,
+      specifications: transformSpecs(productData.specifications),
       category: categoryInfo.parent,
       subcategory: categoryInfo.subcategory,
       highlights: productData.metadata.highlights,

@@ -2,7 +2,7 @@ import axios from 'axios'
 import * as cheerio from 'cheerio'
 import { CreateProductWorkflowInputDTO } from "@medusajs/framework/types"
 import { getCategoryFromSubtitle } from './crawl-attributes/category-mapper'
-import { openaiService } from '../services/openai'
+import { ollamaService } from '../services/ollama'
 import { transformSpecs } from './dimensionHandler'
 
 interface ProductOption {
@@ -460,7 +460,7 @@ export async function convertToApiFormat(productData: ProductDetails): Promise<C
     // Reverse the images array and loop through
     const reversedImages = [...variant.images].reverse()
     for (const imageUrl of reversedImages) {
-      const isDimension = await openaiService.isDimensionImage(imageUrl)
+      const isDimension = await ollamaService.isDimensionImage(imageUrl)
       if (isDimension) {
         dimensionImageUrl = imageUrl
         break

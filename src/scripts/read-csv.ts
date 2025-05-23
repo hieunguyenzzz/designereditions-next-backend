@@ -42,8 +42,9 @@ export default async function readCSV({
     // Create a map of SKU to variant for quick lookup
     const variantMap = new Map()
     allVariants.forEach(variant => {
-      if (variant.metadata?.SKU) {
-        variantMap.set(variant.metadata?.SKU, variant)
+      let sku = variant.metadata?.["SKU"] || variant.metadata?.specifications?.["SKU"];
+      if (sku) {
+        variantMap.set(sku, variant)
       }
     })
     

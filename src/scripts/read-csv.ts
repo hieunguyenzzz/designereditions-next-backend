@@ -5,13 +5,14 @@ import * as fs from "fs"
 import * as path from "path"
 import { parse } from "csv-parse/sync"
 import { Modules } from "@medusajs/framework/utils"
-import { updateProductsWorkflow } from "@medusajs/medusa/core-flows"
+// import { updateProductsWorkflow } from "@medusajs/medusa/core-flows"
 
 export default async function readCSV({
   container
 }: ExecArgs) {
   const logger = container.resolve("logger")
   const productService = container.resolve(Modules.PRODUCT)
+  const productModuleService = container.resolve(Modules.PRODUCT)
   
   try {
     // Get the root directory of the project
@@ -92,28 +93,14 @@ export default async function readCSV({
             updatedMetadata.salePrice = salePrice
           }
           
-          // Update the variant using updateProductsWorkflow
+          // Update the variant using productModuleService
           try {
-            const productId = variant.product_id
-            
-            if (!productId) {
-              logger.error(`Variant ${sku} has no associated product_id, skipping update`)
-              continue
-            }
-            
-            await updateProductsWorkflow(container).run({
-              input: {
-                selector: { id: productId },
-                update: {
-                  variants: [
-                    {
-                      id: variant.id,
-                      metadata: updatedMetadata
-                    }
-                  ]
-                }
+            await productModuleService.updateProductVariants(
+              variant.id,
+              {
+                metadata: updatedMetadata
               }
-            })
+            )
             
             updatedVariants++
             console.log(`Updated variant ${sku} metadata: normalPrice=${normalPrice}, salePrice=${salePrice}`)

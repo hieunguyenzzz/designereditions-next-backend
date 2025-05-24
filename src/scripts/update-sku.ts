@@ -25,12 +25,6 @@ export default async function updateSku({
     // Process each variant
     for (const variant of variants) {
       try {
-        // Skip if variant already has SKU in metadata
-        if (variant.metadata && 'SKU' in variant.metadata) {
-          logger.info(`Variant ${variant.title} (id: ${variant.id}) already has SKU metadata: ${variant.metadata.SKU}`)
-          skippedCount++
-          continue
-        }
         
         // Check if specifications exist in metadata
         const specs = variant.metadata?.specifications as Record<string, string> | undefined
@@ -42,9 +36,6 @@ export default async function updateSku({
         
         const skuFromSpecs = specs.SKU
         
-        // Get current metadata and prepare update
-        const currentMetadata = variant.metadata || {}
-        const updatedMetadata = { ...currentMetadata, SKU: skuFromSpecs }
         
         // Update the variant using updateProductsWorkflow
         const productId = variant.product_id
@@ -55,19 +46,12 @@ export default async function updateSku({
           continue
         }
         
-        await updateProductsWorkflow(container).run({
-          input: {
-            selector: { id: productId },
-            update: {
-              variants: [
-                {
-                  id: variant.id,
-                  metadata: updatedMetadata
-                }
-              ]
-            }
+        await productService.updateProductVariants(
+          variant.id,
+          {
+            sku: skuFromSpecs
           }
-        })
+        )
         
         updatedCount++
         logger.info(`Updated variant ${variant.title} (id: ${variant.id}) with SKU metadata: ${skuFromSpecs}`)

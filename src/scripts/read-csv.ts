@@ -76,8 +76,8 @@ export default async function readCSV({
         logger.info(`Found variant for SKU ${sku}: ${variant.title}`)
         
         // Extract price information from the CSV
-        const normalPrice = record["Selling Price"] ? parseFloat(record["Selling Price"].replace(/,/g, "")) * 100 : null
-        const salePrice = record["FINAL"] ? parseFloat(record["FINAL"].replace(/,/g, "")) * 100 : null
+        const normalPrice = record["FINAL"] ? parseFloat(record["FINAL"].replace(/,/g, "")) * 100 : null
+        const salePrice = record["Discounted"] ? parseFloat(record["Discounted"].replace(/,/g, "")) * 100 : null
         
         if (normalPrice !== null || salePrice !== null) {
           // Get current metadata

@@ -6,6 +6,7 @@ import * as path from "path"
 import { parse } from "csv-parse/sync"
 import { Modules } from "@medusajs/framework/utils"
 // import { updateProductsWorkflow } from "@medusajs/medusa/core-flows"
+import { updateProductVariantsWorkflow } from "@medusajs/medusa/core-flows"
 
 export default async function readCSV({
   container
@@ -98,9 +99,25 @@ export default async function readCSV({
             await productModuleService.updateProductVariants(
               variant.id,
               {
-                metadata: updatedMetadata
+                metadata: updatedMetadata,
               }
             )
+
+            await updateProductVariantsWorkflow(container).run({
+              input: {
+                product_variants: [
+                  {
+                    id: variant.id,
+                    prices: [
+                      {
+                        amount: updatedMetadata.normalPrice / 100,
+                        currency_code: "gbp"
+                      }
+                    ]
+                  }
+                ]
+              }
+            })
             
             updatedVariants++
             console.log(`Updated variant ${sku} metadata: normalPrice=${normalPrice}, salePrice=${salePrice}`)

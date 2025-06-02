@@ -41,16 +41,20 @@ export default async function readCSV({
     const [allVariants, variantCount] = await productService.listAndCountProductVariants({})
     logger.info(`Fetched ${variantCount} variants from the database`)
     
-    // Create a map of SKU to variant for quick lookup
+    // Create a map of Type+SKU to variant for quick lookup
     const variantMap = new Map()
     allVariants.forEach(variant => {
-      let sku = variant.metadata?.["SKU"] || variant.metadata?.specifications?.["SKU"];
+      let sku = variant.metadata?.["SKU"] || variant.metadata?.specifications?.["SKU"] || variant.sku;
       if (sku) {
-        variantMap.set(sku, variant)
+        // Try to extract type from variant title (assuming format like "ProductType - VariantName")
+        const titleParts = variant.title?.split(' - ') || []
+        const productType = titleParts[0] || ''
+        const typeSkuKey = `${productType}:${sku}`
+        variantMap.set(typeSkuKey, variant)
       }
     })
     
-    // Track SKUs that don't have variants
+    // Track Type+SKUs that don't have variants
     const missingVariants: string[] = []
     let foundVariants = 0
     let updatedVariants = 0
@@ -58,23 +62,25 @@ export default async function readCSV({
     // Process each record
     for (const record of records) {
       const sku = record.SKU
-      
-      if (!sku) {
-        logger.warn("Record missing SKU, skipping")
+      const type = record.Type
+      if (!sku || !type) {
+        logger.warn("Record missing SKU or Type, skipping")
         continue
       }
       
+      const typeSkuKey = `${type}:${sku}`
+      
       try {
-        // Find the variant by SKU from our map
-        const variant = variantMap.get(sku)
+        // Find the variant by Type+SKU from our map
+        const variant = variantMap.get(typeSkuKey)
         
         if (!variant) {
-          missingVariants.push(sku)
+          missingVariants.push(typeSkuKey)
           continue
         }
         
         foundVariants++
-        logger.info(`Found variant for SKU ${sku}: ${variant.title}`)
+        logger.info(`Found variant for Type+SKU ${typeSkuKey}: ${variant.title}`)
         
         // Extract price information from the CSV
         const normalPrice = record["FINAL"] ? parseFloat(record["FINAL"].replace(/,/g, "")) * 100 : null
@@ -120,14 +126,14 @@ export default async function readCSV({
             })
             
             updatedVariants++
-            console.log(`Updated variant ${sku} metadata: normalPrice=${normalPrice}, salePrice=${salePrice}`)
+            console.log(`Updated variant ${typeSkuKey} metadata: normalPrice=${normalPrice}, salePrice=${salePrice}`)
           } catch (updateError) {
-            console.log(`Error updating variant ${sku} metadata: ${updateError.message}`)
+            console.log(`Error updating variant ${typeSkuKey} metadata: ${updateError.message}`)
           }
         }
       } catch (error) {
-        logger.error(`Error processing variant with SKU ${sku}: ${error.message}`)
-        missingVariants.push(sku)
+        logger.error(`Error processing variant with Type+SKU ${typeSkuKey}: ${error.message}`)
+        missingVariants.push(typeSkuKey)
       }
     }
     
@@ -137,7 +143,7 @@ export default async function readCSV({
     console.log(`Found variants: ${foundVariants}`)
     console.log(`Updated variants with price metadata: ${updatedVariants}`)
     console.log(`Missing variants: ${missingVariants.length}`)
-    console.log("SKUs without associated variants:")
+    console.log("Type+SKUs without associated variants:")
     console.log(missingVariants.join(', '))
     
   } catch (error) {

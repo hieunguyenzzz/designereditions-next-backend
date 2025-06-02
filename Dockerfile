@@ -22,6 +22,9 @@ COPY . .
 # Build the application
 RUN yarn build
 
+# Copy .medusa/server/public/ to public folder
+RUN cp -r .medusa/server/public/ public
+
 # Expose Medusa server port
 EXPOSE 9000
 
